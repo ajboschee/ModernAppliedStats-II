@@ -1,0 +1,471 @@
+---
+title: "Homework 5"
+author: "Andrew Boschee"
+output: pdf_document
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F,warning=F,message=F)
+```
+
+```{r, echo = FALSE}
+# import packages
+library(ggplot2)
+library(ISLR)
+library(readr)
+library(gridExtra)
+library(mclust)
+library(knitr)
+library(MASS)
+library(GGally)
+library(corrplot)
+```
+
+*No Collaborators. Outside Resources: Elements of Statistical Learning, Rdocumentation.com*
+
+## Probability Calculations
+
+**Question 4.7.6, pg 170:** Suppose we collect data for a group of students in a statistics class with variables *X1 = Hours Studied*, *X2 = Undergrad GPA*, and *Y = Receive an A*. We fit a logistic regression and produce estimated coefficient, \[\beta_0 = -6\], \[\beta_1 = 0.05\] and \[\beta_2 = 1\]
+
+**Part A:** Estimate the probability that a student who studies for 40h and has an undergrad GPA of 3.5 gets an A in this class.
+
+Lay out formula:
+\[p(x) = \frac{e^{\beta_0+\beta_1 X_1+\beta_2 X_2}}{1+e^{\beta_0+\beta_1 X_1+\beta_2 X_2}}\]
+
+Plug in values:
+\[p(X) = \frac{e^{-6 + 0.05 \times 40 + 1 \times 3.5}}{1+e^{-6+0.05 \times 40 + 1 \times 3.5}}\]
+
+Solve:
+```{r, echo = FALSE}
+# calc probability
+probA <- exp(-6+0.05*40+1*3.5)/(1+exp(-6+0.05*40+1*3.5))
+
+# output with kable and round
+kable(round(probA, 4), caption = 'Probability of Getting an A', col.names = NULL)
+
+```
+
+Given the student studies 40 hours and has a GPA of 3.5, they have roughly 38 percent probability of getting an A
+
+
+**Part B:** How many hours would the student in Part A need to study to have a 50% chance of getting an A in the class?
+
+Set the equation equal to 0.5:
+\[0.5 = \frac{e^{-6 + 0.05 \times 40 + 1 \times 3.5}}{1+e^{-6+0.05 \times 40 + 1 \times 3.5}}\]
+
+Which becomes equal to:
+\[log(\frac{0.5}{1-0.5}) = -6 + 0.05 X_1 + 1 \times 3.5\]
+
+
+Solve:
+```{r, echo = FALSE}
+# calc hours to study
+hoursStudy <- (log(0.5/(1-0.5)) + 6 - 3.5*1)/0.05
+
+# output with kable
+kable(hoursStudy, caption = 'Estimated Hours to Study', col.names = NULL)
+```
+
+Given, the student has a 3.5 gpa, they should study 50 hours for a 50 percent chance of getting an A
+
+    
+**2) Question 4.7.7 pg 170 -** Suppose that we wish to predict whether a given stock will issue a dividend this year ("Yes" or "No") based on *X*, which equals last year's percent profit. We examine a large number of companies and discover that the mean value of *X* for companies that issued a dividend was *X = 10*, while the mean for those that didn't was *X = 0*. In addition, the variance of *X* for these two sets of companies was \[\sigma^2 = 36\]. Finally, 80% of companies issued dividends. Assuming that *X* follows a normal distribution, predict the probability that a company will issue a dividend this year given that its percentage profit was *X = 4* last year.
+
+**Results:** 
+\[p(4) = \frac{0.8e^{-(1/72)(4-10)^2}}{0.8e^{-(1/72)(4-10)^2}+0.2e^{-(1/72)(4-0)^2}}\]
+
+Solve
+
+```{r, echo=FALSE}
+# calc probability
+divProb <- (0.8*exp(-1/(2*36)*(4-10)^2))/(0.8*exp(-1/(2*36)*(4-10)^2)+(1-0.8)*exp(-1/(2*36)*(4-0)^2))
+
+# output calc with kable and round
+kable(round(divProb, 4), caption = 'Probability of Paying Dividend', col.names = NULL)
+
+```
+
+Plugging values into the equation, the probability of a dividend being paid comes out to roughly 75%. 
+
+
+## Mclust Classification - Weekly Data
+    
+3) Continue from Homework \#3 \& 4 using the \textbf{Weekly} dataset from 4.7.10), fit a model (using the predictors chosen for previous homework) for classification using the MclustDA function from the mclust-package. 
+
+    
+    i) Do a summary of your model.
+    
+        -What is the best model selected by BIC? Report the Model Name and the BIC. (See https://www.rdocumentation.org/packages/mclust/versions/5.4/topics/mclustModelNames)
+        
+        -What is the training error? What is the test error? 
+        
+        -Report the True Positive Rate and the True Negative Rate.
+        
+        
+```{r, echo = FALSE}
+# set seed
+set.seed(123)
+#load weekly data
+data('Weekly', package = 'ISLR')
+#head(Weekly)
+
+# split train/test from subset
+train <- subset(Weekly, Year < 2009)
+test <- subset(Weekly, Year >= 2009)
+
+```
+
+```{r, echo = FALSE}
+
+# build cluster model
+weeklyMclust <- MclustDA(train$Lag2, class = train$Direction)
+
+#summary(weeklyMclust)
+# pull model summary
+weeklySummary <- summary(weeklyMclust, parameters = TRUE, what = 'classification', newdata = test$Lag2, newclass = test$Direction)
+
+```
+
+```{r, echo = FALSE}
+# output model and bic
+modName <- mclustModelNames('V')
+weeklyBIC <- weeklyMclust$bic
+
+```
+
+```{r, echo = FALSE}
+# pull error rates/accuracy
+error1 <- weeklySummary$err
+error2 <- weeklySummary$err.newdata
+acc <-weeklyMclustAcc <- 1 - weeklySummary$err.newdata
+
+weeklyResultVec<- c(modName, round(weeklyBIC,3), round(error1,3), round(error2, 3), round(acc,3))
+weeklyResultColName <- c('Cluster Model','Model Type','BIC','Train Error', 'Test Error', 'Accuracy')
+
+weeklyResultDF <- rbind(weeklyResultColName, weeklyResultVec)
+dimnames(weeklyResultDF) <- NULL
+
+kable(as.data.frame(weeklyResultDF[,1:6]), col.names = NULL, caption = 'Weekly Model Summary')
+
+```
+  
+```{r, echo = FALSE}
+# calc true positives and true negatives
+weeklyTP <- weeklySummary$tab.newdata[2,2]/(weeklySummary$tab.newdata[2,1] + weeklySummary$tab.newdata[2,2])
+weeklyTN <- weeklySummary$tab.newdata[2,1]/(weeklySummary$tab.newdata[1,2] + weeklySummary$tab.newdata[1,1])
+
+weeklyTPTN <- cbind.data.frame(weeklyTP, weeklyTN)
+
+kable(weeklyTPTN, caption = 'True Positives and True Negatives', col.names = c('TP','TN'))
+
+
+```
+
+
+### EDDA
+        
+  ii) Specify modelType="EDDA" and run MclustDA again. Do a summary of your model.
+  
+  -What is the best model selected by BIC? 
+  
+  -Find the training and test error rates. 
+  
+  -Report the True Positive and True Negative Rate.
+        
+        
+```{r, echo = FALSE}
+# build  EDDA model
+weeklyEDDA <- MclustDA(train$Lag2, class = train$Direction, modelType = 'EDDA')
+
+#create summary
+weeklyEDDASummary <- summary(weeklyEDDA, parameters = TRUE, what = 'classification', newdata = test$Lag2, newclass = test$Direction)
+```
+
+
+```{r, echo = FALSE}
+# Repeat steps from prior model
+modelName <- mclustModelNames('E')
+model2BIC <- weeklyEDDASummary$bic
+
+EDDAError1 <- weeklyEDDASummary$err
+EDDAError2 <- weeklyEDDASummary$err.newdata
+
+weeklyEDDAAcc <- 1 - weeklyEDDASummary$err.newdata
+
+EDDAResults <- c('Model','Type','BIC','Train Error','Test Error','Accuracy')
+EDDAOutput <- c(modelName, round(model2BIC, 2), round(EDDAError1,3), round(EDDAError2, 3), weeklyEDDAAcc)
+
+EDDAFinal <- rbind.data.frame(EDDAResults, EDDAOutput)
+
+kable(as.data.frame(EDDAFinal), col.names = NULL, caption = 'Weekly Model Summary')
+
+```
+
+```{r, echo = FALSE}
+# calt true positives and true negatives
+weeklyTP2 <- weeklyEDDASummary$tab.newdata[2,2]/(weeklyEDDASummary$tab.newdata[2,1] + weeklyEDDASummary$tab.newdata[2,2])
+weeklyTN2 <- weeklyEDDASummary$tab.newdata[2,1]/(weeklyEDDASummary$tab.newdata[1,2] + weeklyEDDASummary$tab.newdata[1,1])
+
+weeklyTPTN2 <- cbind.data.frame(weeklyTP2, weeklyTN2)
+
+kable(weeklyTPTN2, caption = 'True Positives and True Negatives', col.names = c('TP','TN'))
+```
+
+
+  iii) Compare the results with Homework \#3 \& 4. Which method performed the best? Justify your answer. \textit{Here you need to list the previous methods and their corresponding rates.}
+    
+```{r, echo = FALSE}
+methods2 <- c('Logistic Regression', 'GLM','LDA', 'QDA', 'KNN (k = 15)', 'EEV', 'VVV')
+results2 <- c(.56, .625, .625, .59, .55, .55, .625)
+
+comp1 <- rbind.data.frame(methods2, results2)
+
+kable(comp1, col.names = NULL, caption = 'Method Comparison - Weekly')
+
+```
+
+
+For each method, the training and test sets were split 75/25 as before and used the mclust function to find the method. From the summaries, cofusion matrices are available and classification rates are shown. Finding true positive and true negatives was done in similar manner as prior assignments writing out the equations and pulling values from the confusion matrix.
+When comparing across all methods, there is not as much improvement as expected. I'm guessing that the limited size of the data is partially responsible for this situation with GLM, LDA, and VVV getting the exact same accuracy. I believe if we had a larger sample that it may give us some more insight on the effectiveness of using various modeling methods. While KNN and logistic regression are the simple and easy to explain methods, they definitely would not be the method of choice in the end here.
+
+
+## Mclust Classification - Auto Data
+  
+4) Continue from Homework \#3 \& 4 using the \textbf{Auto} dataset from 4.7.11). Fit a classification model (using the predictors chosen for previous homework) using the MclustDA function from the mclust-package. Use the same training and test set from previous homework assignments.
+
+  i)  Do a summary of your model.
+  -What is the best model selected by BIC? Report the model name and BIC.
+  
+  -What is the training error? What is the test error? 
+  
+  -Report the True Positive Rate and the True Negative Rate.
+        
+```{r, echo = FALSE}
+
+# load dataset
+data('Auto', package = 'ISLR')
+
+```
+
+```{r, echo = FALSE}
+
+# add column based on median of mpg
+Auto$mpg01 <- as.factor(ifelse(Auto$mpg > median(Auto$mpg), 1, 0))
+
+#head(Auto)
+```
+
+```{r, echo = FALSE}
+
+# create a sample size of 75% of the sample
+sampleRows <- (0.75 * nrow(Auto))
+# set seed for reproducibility
+set.seed(123)
+trainIndex <- sample(seq_len(nrow(Auto)), size = sampleRows)
+# split into train and test
+train <- Auto[trainIndex,]
+test <- Auto[-trainIndex,]
+
+# split train and test sets
+test <- test[,c('mpg01','cylinders','weight','displacement','horsepower','year')]
+train <- train[,c('mpg01','cylinders','weight','displacement','horsepower','year')]
+```
+
+```{r, echo = FALSE}
+# linear discriminant analysis on auto dataset
+autoMclustDA <- MclustDA(train[,2:6], class = train[,1], G = 1:9)
+```
+
+
+```{r, echo = FALSE}
+#summary(autoMclustDA)
+AutoEEVSummary <- summary(autoMclustDA, parameters=TRUE, what = 'classification', newdata=test[,2:6], newclass = test[,1])
+```
+
+```{r, echo=FALSE}
+# output model and bic
+modelName3 <- mclustModelNames('EEV')
+model3BIC <- autoMclustDA$bic
+
+```
+ 
+```{r, echo = FALSE}
+# calc TP and TN
+EEVTruePos <- AutoEEVSummary$tab.newdata[2,2]/(AutoEEVSummary$tab.newdata[2,1] + AutoEEVSummary$tab.newdata[1,1])
+EEVTrueNeg <- AutoEEVSummary$tab.newdata[1,1]/(AutoEEVSummary$tab.newdata[1,2]+AutoEEVSummary$tab.newdata[1,1])
+
+
+EEVTPTN <- cbind.data.frame(EEVTruePos, EEVTrueNeg)
+
+```
+
+```{r, echo = FALSE}
+# display errors
+modErrDA <- AutoEEVSummary$err
+modErrDA2 <- AutoEEVSummary$err.newdata
+autoMclustDAAccu <- 1 - AutoEEVSummary$err.newdata
+```
+
+```{r, echo = FALSE}
+# calc accuracy
+ResultColName <- c('Model','Model Type','BIC','Train Error', 'Test Error', 'Accuracy')
+autoDAResult <- c(modelName3, round(model3BIC,2), round(modErrDA,3), round(modErrDA2, 3), round(autoMclustDAAccu,3))
+
+autoDAResults <- rbind.data.frame(ResultColName, autoDAResult)
+
+kable(autoDAResults, col.names = NULL, caption = 'Model Summary')
+```
+
+```{r, echo = FALSE}
+# output true positives and true negatives with kable
+kable(EEVTPTN, col.names = c('TP','TN'), caption = 'True Positives and True Negatives')
+```
+
+
+### EDDA
+        
+  ii) Specify modelType="EDDA" and run MclustDA again. Do a summary of your model.
+  
+  -What is the best model selected by BIC? 
+  
+  -Find the training and test error rates. 
+  
+  -Report the True Positive and True Negative Rate.
+      
+```{r, echo=FALSE}
+# build EDDA model
+autoMclustEDDA <- MclustDA(train[,2:6], class = train[,1], modelType = 'EDDA')
+
+# store summary
+AutoMclustEDDASummary <- summary(autoMclustEDDA, parameters = TRUE, what = 'classification', newdata = test[,2:6], newclass = test[,1])
+```
+
+```{r, echo=FALSE}
+# output model bic
+modName4 <- mclustModelNames('VVV')
+mod4BIC <- autoMclustEDDA$bic
+
+
+```
+
+```{r, echo = FALSE}
+# display errors
+modErr4 <- AutoMclustEDDASummary$err
+modErr5 <- AutoMclustEDDASummary$err.newdata
+autoMclustEDDAAccu <- 1 - AutoMclustEDDASummary$err.newdata
+```
+
+```{r, echo = FALSE}
+# calc accuracy
+ResultColName <- c('Model','Model Type','BIC','Train Error', 'Test Error', 'Accuracy')
+autoEDDAResult <- c(modName4, round(mod4BIC,2), round(modErr4,3), round(modErr5, 3), round(autoMclustEDDAAccu,3))
+
+autoResults <- rbind.data.frame(ResultColName, autoEDDAResult)
+
+kable(autoResults, col.names = NULL, caption = 'Auto EDDA Model Summary')
+```
+
+```{r, echo = FALSE}
+# calc TP and TN
+EDDATruePos <- AutoMclustEDDASummary$tab.newdata[2,2]/(AutoMclustEDDASummary$tab.newdata[2,1] + AutoMclustEDDASummary$tab.newdata[1,1])
+EDDATrueNeg <- AutoMclustEDDASummary$tab.newdata[1,1]/(AutoMclustEDDASummary$tab.newdata[1,2]+AutoMclustEDDASummary$tab.newdata[1,1])
+
+EDDATPTN2 <- cbind.data.frame(EDDATruePos, EDDATrueNeg)
+kable(EDDATPTN2, col.names = c('TP','TN'),caption = 'True Positives and True Negatives')
+```
+    
+  iii) Compare the results with Homework \#3 \& 4. Which method performed the best? Justify your answer. \textit{Here you need to list the previous methods and their corresponding rates.}
+
+
+```{r, echo=FALSE}
+# create vectors of output to combine and shwo with kable
+method <- c('Logistic Regression', 'GLM','LDA', 'QDA', 'KNN (k = 10)', 'EEV', 'VVV')
+accuracy1 <- c(.56, .625, .89, .89, .89, .89, .89)
+
+comp2 <- rbind.data.frame(method, accuracy1)
+
+kable(as.data.frame(comp2), col.names = NULL, caption = 'Method Comparison - Auto')
+
+```
+
+As expected from prior assignments, the models performed fairly well and comparable to the LDA, QDA, and KNN models. Similar to the Weekly dataset, it would be interesting to see a larger dataset that would make it much less likely to have the exact same accuracy and be able to see a more in depth comparison of the models.
+
+
+5)  Read the paper "Who Wrote Ronald Reagan's Radio Addresses?" posted on D2L. Write a one page (no more, no less) summary. \textit{You may use 1.5 or double spacing.}
+
+The study was composed of radio addresses by Ronald Reagan between the years of 1975 and 1979 to aid in making his presence known during his presidential campaign. Through this time there were roughly 1000 addresses with about 2/3 known to be written by Reagan himself, 39 by his staff, and the remaining uncertain. As expected in politics, these addresses were across various topics that contribute to events and opinions relevant to his campaign. With uncertainty of who authored the roughly 1/3 of his remaining radio addresses, an attempt was made to find characteristics of writing styles by authors of the given data to classify those remaining radio addresses. 
+With a lack of data coming from non-Reagan addresses, I had immediate concern on how distinguishable it really could be when comparing between authors. This also varied by year as we could see from the table breaking down texts by author over the five-year period. Surprisingly, M. Anderson only had one authorship through that whole timespan and I am curious what may have caused the variance of authorship in relation to political and campaigning circumstances. Did Reagan need to change his tone or communication style over time in response to political bias and criticism? This also potentially factors in to how distinguishable the writing styles may be over those years.
+Multiple methods were used in EDA as well as classification methods through this study. To help analyze grouping of words, n-grams were used. This stuck out the most to me since it can be modified and help see phrases or common habits in an authors writing style. This also relates to the principal component analysis looking at the highest frequency words while eliminating words that don’t provide any distinguishable benefit. This allows for clustering of word use to also get a broader picture of each authors habits.
+They seemed to have a strong liking to the Negative-Binomial model (while stating it’s optimistically biases) with accuracies between 92 and 99 percent. Was a little surprised with their conclusion that Reagan drafted 77 speeches, and his collaborators 71, in 1975. Then, from 1976-79, Reagan drafts 90 and Hannafort 74. That seems much more balanced than I expected from my first impression that Reagan did the majority by himself.
+I was glad that in the end they were very thorough about the timing of authorships and separating the models for authorship in 1975 and 1976-1979. It’s interesting to see the difference in how they analyzed radio addresses back then while we have so many social media outlets and biased news stations today to potentially impact these types of studies. 
+
+
+## Wine Quality EDA
+
+6) Last homework you chose a dataset from [this website](https://archive.ics.uci.edu/ml/datasets.html). Please do some initial exploration of the dataset. If you don't like the dataset you chose you may change it with another. It has to be a new dataset that we haven't used in class. Please report the analysis you did and dicuss the challenges with analyzing the data. \textit{Any plots for this question need to be done using only GGplot2-based plots.}
+
+After combining the red and white wine datasets from the csv files, I added a type column to create the dependent variable for classification. With not much background/conceptual knowledge of wine, I am just looking to get a high level view of the independent variables for the model.
+To try and see what variables are likely to have significant role in relation to classification of red/white, boxplots were made for all independent variables in relation to classification. The ones that stood out the most and that I expect to have a strong impact on classification are shown below with others commented out.
+
+```{r, echo = FALSE}
+# read datasets and show heads of datasets
+
+wineQualityRed <- read.csv("winequality-red.csv", sep = ';')
+wineQualityWhite <- read.csv('winequality-white.csv', sep = ';')
+
+#head(as.data.frame(wineQualityRed))
+#head(as.data.frame(wineQualityWhite))
+```
+
+```{r, echo = FALSE}
+# add column to each dataframe of what type of wine 
+wineQualityRed$type <- 'Red'
+wineQualityWhite$type <- 'White'
+
+# combine dataframes with rbind
+wineData <- rbind(wineQualityRed, wineQualityWhite)
+#head(wineData)
+```
+
+```{r, echo = FALSE, fig.height= 5, fig.width=10}
+
+#ggplot(wineData, aes(type, chlorides, type))+
+#  geom_boxplot()
+grid.arrange(
+ggplot(wineData, aes(type, fixed.acidity, type))+
+  geom_boxplot() +
+  labs(x='Wine Type', y='Fixed Acidity', title = 'Fixed Acidity by Wine Type'),
+ggplot(wineData, aes(type,volatile.acidity, type))+
+  geom_boxplot()+
+  labs(x='Wine Type', y = 'Volatile Acidity', title = 'Volatile Acidity by Wine Type'),
+ggplot(wineData, aes(type, citric.acid, type))+
+  geom_boxplot()+
+  labs(x='Wine Type', y = 'Citric Acid', title = 'Citric Acid by Wine Type'),
+ggplot(wineData, aes(type, residual.sugar, type))+
+  geom_boxplot()+
+  labs(x= 'Wine Type', y = 'Residual Sugar', title = 'Residual Sugar by Wine Type' ), nrow=2)
+```
+
+```{r, echo = FALSE, fig.height=5, fig.width= 10}
+grid.arrange(
+ggplot(wineData, aes(type, free.sulfur.dioxide, type))+
+  geom_boxplot()+
+  labs(x= 'Wine Type', y = 'Free Sulfur Dioxide', title = 'Free Sulfur Dioxide by Wine Type'),
+ggplot(wineData, aes(type, total.sulfur.dioxide, type))+
+  geom_boxplot()+
+  labs(x= 'Wine Type', y = 'Total Sulfur Dioxide', title = 'Total Sulfur Dioxide by Wine Type'),
+ggplot(wineData, aes(type, density, type))+
+  geom_boxplot()+
+  labs(x='Wine Type', y = 'Density', title = 'Density by Wine Type'),
+#ggplot(wineData, aes(type, pH, type))+
+ # geom_boxplot()
+ggplot(wineData, aes(type, sulphates,type))+
+  geom_boxplot()+
+  labs(x='Wine Type', y = 'Sulphates', title = 'Sulphates by Wine Type'),nrow=2)
+#ggplot(wineData, aes(type, alcohol, type))+
+#  geom_boxplot()
+#ggplot(wineData, aes(type, quality,type))+
+#  geom_boxplot()
+
+```

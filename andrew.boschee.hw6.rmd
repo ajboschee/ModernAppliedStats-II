@@ -1,0 +1,484 @@
+---
+title: "Homework 6"
+author: "Andrew Boschee"
+date: "3/12/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F,warning=F,message=F)
+```
+
+
+```{r, echo = FALSE}
+library(ISLR)
+library(MASS)
+library(mclust)
+library(knitr)
+library(class)
+
+```
+
+**No collaborators. Outside Resources: Rdocumentation.com, The Elements of Statistical Learning**
+
+**Question 5.4.3, pg 198:** We now review k-fold cross-validation.
+
+**Part A:** Explain how k-fold cross-validation is implemented.
+
+**Results:**
+k-fold involves spliting the observations up into equal sized groups with one of the given sets as the validation set. The remaining sets/folds are used to train the model. This is repeated altering which set is held-out and finding the mean squared error across the the folds.
+
+**Part B:** What are the advantages and disadvantages of k-fold cross-validation relative to:
+- The validation set approach?
+- LOOCV?
+
+**Results:** 
+The most noticable difference that stands out is the compuatino power needed with cross-validation. k-fold will be in the middle of LOOCV and validation set approach. LOOCV will be much slower with k equal to the number of observations overall and k-fold is modified to whatever you want k to be. Validation set approach is clearly the most simple approach while LOOCV can also be the most unbiased option taking away the random splitting that occurs from validation set approach.
+
+K-fold is a nice balanced approach in my opinion, but as computing power continues to become more impressive, LOOCV is definitely worth trying.
+
+# Default Predictions
+
+## Logistic Regression
+
+**Question 5.4.5, pg 198:** In chapter 4, we used logistic regression to predict the probability of *default* using *income* and *balance* on the *Default* dataset. We will now estimate the test error of this logistic regression model using the validation set approach. Do not forget to set a random seed before beginning your analysis. *Use set.seed(702) to make results replicable*
+
+**Part A:** Fit a logistic regression model that uses *income* and *balance* to predict *default*.
+
+**Results: **After setting a random seed '702', the Default dataset is imported and model is fit with default as the dependent variable and income and balance as independent variables. Summary is shown with both predictors being statistically significant.
+
+```{r, echo = FALSE}
+# set seed
+set.seed(702)
+
+# load data
+data('Default', package = 'ISLR')
+
+#head(Default)
+```
+
+
+```{r, echo=FALSE}
+# build first model
+defaultGLM <- glm(default ~ income + balance, data = Default, family = binomial)
+summary(defaultGLM)
+```
+
+## MLR Validation Set
+
+**Part B:** Using the validation set approach, estimate the test error of this model. In order to do this, you must perform the following steps. 
+1) Split the sample set into a training and validation set
+2) Fit a multiple logistic regression model using only the training observations
+3) Obtain a prediction of default status for each individual in the validation set by computing the posterior probability of default for that individual, and classifying that individual to the *default* category if the posterior probability is greater than 0.5
+4) Compute the validation set error, which is the fraction of the observations in the validation set that are misclassified
+
+**Results: **Using 75/25 split, the dataset is indexed and the model is run again identical to part a. Both variables are still seen as statistically significant.
+
+```{r, echo = FALSE}
+# split dataset
+trainSet <- .75 * nrow(Default)
+trainIndex <- sample(seq_len(nrow(Default)), size = trainSet)
+train <- Default[trainIndex,]
+test <- Default[-trainIndex,]
+```
+
+```{r, echo = FALSE}
+# build second model
+defaultGLM2 <- glm(default ~ income + balance, data = train, family = binomial)
+
+summary(defaultGLM2)
+```
+
+```{r, echo = FALSE}
+# classify based on threshold
+prob <- predict(defaultGLM2, test, type = 'response')
+pred <- ifelse(prob > 0.5, 'yes','no')
+
+```
+
+```{r, echo = FALSE}
+# add classification summary function
+classificationSummary <- function(threshold, predictedProb, binaryResp) {
+    output <- list()
+    predictions <- ifelse(predictedProb > threshold, 1, 0)
+    confMatrix <- table(binaryResp, predictions)
+    output$MisclassificationRate <- 1- ((confMatrix[1,1] +confMatrix[2,2])/
+                                         (confMatrix[1,1] + 
+                                          confMatrix[1,2]+confMatrix[2,1] + 
+                                          confMatrix[2,2]))
+     
+    output$Sensitivity <- confMatrix[2,2]/(confMatrix[2,2] + confMatrix[2,1])
+    output$Specificity <- confMatrix[1,1]/(confMatrix[1,1] + confMatrix[1,2])
+    return(as.data.frame(output))
+}
+
+default1 <- classificationSummary(.5, prob, test$default)
+
+kable(default1, caption = 'Multiple Logistic Regression - Default')
+```
+
+**Results Continued: **Using the classification function created in prior assignment, we can see the misclassification rate, sensitivity, and specificity. With a threshold of .5, the misclassification rate is very low at about .03.
+
+## Split Size Comparison
+
+**Part C:** Repeat the process in (b) three times using three different splits of the observations into training and validation sets. Comment on the results obtained.
+
+**Results: **Started by declaring new training sets with multiplication of nrow function of dataset and .6, .8, and .9. Created index with sample function on each set, and then split each set based on the index variables
+
+```{r, echo = FALSE}
+# get number of rows for training set
+trainSet2 <- .6 * nrow(Default)
+trainSet3 <- .8 * nrow(Default)
+trainSet4 <- .9 * nrow(Default)
+
+# set index for each set
+trainIndex2 <- sample(seq_len(nrow(Default)), size = trainSet2)
+trainIndex3 <- sample(seq_len(nrow(Default)), size = trainSet3)
+trainIndex4 <- sample(seq_len(nrow(Default)), size = trainSet4)
+
+# define training and test sets
+train2 <- Default[trainIndex2,]
+test2 <- Default[-trainIndex2,]
+
+train3 <- Default[trainIndex3,]
+test3 <- Default[-trainIndex3,]
+
+train4 <- Default[trainIndex4,]
+test4 <- Default[-trainIndex4,]
+
+```
+
+```{r, echo = FALSE}
+# glm models split at 60,80, and 90 percent
+glmSixty <-  glm(default ~ income + balance, data = train2, family = binomial)
+glmEighty <- glm(default ~ income + balance, data = train3, family = binomial)
+glmNinety <- glm(default ~ income + balance, data = train4, family = binomial)
+
+#make predictions with each training set
+glmSixtyPred <- predict(glmSixty, test2, type = 'response')
+glmEightyPred <- predict(glmEighty, test3, type = 'response')
+glmNinetyPred <- predict(glmNinety, test4, type = 'response')
+
+# put each model through classification function
+defaultSixty <- classificationSummary(.5, glmSixtyPred, test2$default)
+defaultEighty <- classificationSummary(.5, glmEightyPred, test3$default)
+defaultNinety <- classificationSummary(.5, glmNinetyPred, test4$default)
+```
+
+```{r, echo = FALSE}
+kable(defaultSixty, caption = '60/40 Split')
+kable(defaultEighty, caption = '80/20 Split')
+kable(defaultNinety, caption = '90/10 Split')
+```
+
+**Results Continued: **The misclassification rate went down a noticeable amount at the 90/10 split, but there was not much difference at the 60/40 or 80/20. Can see that all splits have very high specificity giving the conclusion there were not many false positives in these classifications
+
+## Additional Predictor Variable
+
+**Part D:** Now consider a logistic regression model that predicts the probability of *default* using *income*, *balance*, and a dummy variable for *student*. Estimate the test error for this model using the validation set approach. Comment on whether including the dummy variable for *student* lead to a reduction in the test error rate.
+
+**Results: **Using the GLM function with binomial family argument and train set in data argument, predictions were wade with threshold of .5.
+
+
+```{r, echo = FALSE}
+#glm model with student added
+defaultGLM3 <- glm(default ~ income + balance + student, data = train, family = binomial)
+#defaultGLM3
+# calculate prob and make predictions
+GLM3Prob <- predict(defaultGLM3, test, type = 'response')
+GLM3Pred <- ifelse(GLM3Prob > 0.5, 'yes','no')
+
+# use classification summary function on model
+GLM3Summary <- classificationSummary(.05, GLM3Prob, test$default)
+kable(GLM3Summary, caption = 'Logistic Regression w/ Student Variable')
+
+```
+
+**Results Continued: **Adding the dummy variable had a very noticable impact on misclassification, sensitivity and specificity. With prior models returning around .02 error rate, this model ended up with approximately .10 misclassification rate. This result came using the 75/25 split from part a.
+
+# Weekly Dataset
+
+**Question 5.4.7, pg 200:** In sections 5.3.2 and 5.3.3, we saw that the **cv.glm()** function can be used in order to compute the LOOCV test error estimate. Alternatively, one could compute those quatities just using the **glm()** and **predict.glm()** functions, and a for loop. You will now take this approach in order to compute LOOCV error for a simple logistic regression model on the *Weekly* dataset. Recall that in the context of classification problems, the LOOCV error is given in (5.4).
+
+## Logistic Regression
+
+**Part A:** Fit a logistic regression model that predicts *Direction* using *Lag1* and *Lag2*.
+
+```{r, echo = FALSE}
+# load dataset
+data('Weekly', package = 'ISLR')
+
+#head(Weekly)
+
+```
+
+```{r, echo = FALSE}
+# glm model of lag one and two
+weeklyGLM <- glm(Direction ~ Lag1 + Lag2, data = Weekly, family = binomial)
+
+summary(weeklyGLM)
+```
+
+**Results: **Model created after loading dataset with Direction as dependent variable and Lag1 and Lag2 as independent variables
+
+**Part B:** Fit a logistic regression model that predicts *Direction* using *Lag1* and *Lag2* *using all but the first observation*.
+
+**Results: **Fit model with all but the first observation from the dataset. Lag2 is still the only statistically significant independent variable. Slight change in AIC.
+
+```{r, echo = FALSE}
+# logistic regression with first observation not included
+weeklyGLM2 <- glm(Direction ~ Lag1 + Lag2, family = binomial, data = Weekly[-1,])
+
+summary(weeklyGLM2)
+```
+
+
+## Direction Prediction
+
+**Part C:** Use the model from (b) to predict the *Direction* of the first observation. Was this observation correctly classified?
+
+**Results: **The model predicted the market to go up while the actual direction was down. Since day one of working with this dataset and my non-optimistic outlook of predicting the market, I am not surprised with the result. Used cbind.data.frame to put prediction and actual output side-by-side.
+
+```{r, echo = FALSE}
+# make prediction on first observation
+individObPred <- predict(weeklyGLM2, Weekly[1,], type = 'response')
+individObPred <- ifelse(individObPred > 0.5, 'up', 'down')
+
+# compare the output vs actual results
+predictedDirection <- individObPred
+actualDirection <- Weekly[1,'Direction']
+
+directionComp <- cbind.data.frame(predictedDirection, actualDirection)
+
+kable(directionComp, col.names = c('Predicted', 'Actual'), caption = 'Predicted Output vs Actual Output')
+```
+
+## LOOCV
+
+**Part D:** Write a for loop from i=1 to i=n, where n is the number of observations in the dataset, that performs each of the following steps:
+1) Fit a logistic regression using all but the ith observation to predict *Direction* using *Lag1* and *Lag2*
+2) Compute the posterior probability of the market moving up for the ith observation
+3) Use the posterior probability for the ith observation in order to predict whether or not the market moves up
+4) Determine whether or not an error was made in predicting the direction for the ith observation. If an error was made, then indicate this as a 1, and otherwise indicate it as a 0
+
+**Results: **Set variable n as the number of rows from the dataset and looped from 1 to n. Model is built one row with data parameter in the loop using the ith observation. Prediction is made classifying each iteration and marking 0/1 based on classification.
+
+```{r, echo = TRUE}
+# declare variable to total number of rows
+n <- nrow(Weekly)
+# framework for final output
+weeklyOutput <- rep(0, nrow(Weekly))
+for (i in 1:n){
+  model <-glm(Direction ~ Lag1 + Lag2, data = Weekly[-i,], family = binomial)
+  modelPred <- ifelse(predict(model, Weekly[i, ], type = 'response') > 0.5, 'Up','Down')
+  weeklyOutput[i] <- ifelse(Weekly[i,]$Direction == modelPred, 0, 1)
+  
+}
+
+```
+
+```{r, echo = FALSE, eval= FALSE}
+# reset variable value to 0
+countError <- 0
+
+#loop through vector from prior loop and count the number of errors
+for (i in 1:length(weeklyOutput)){
+  if (weeklyOutput[i] == 1){
+    countError = countError + 1
+  }
+}
+
+# output the number of errors
+
+#countError/nrow(Weekly)
+
+```
+
+## LOOCV Results
+
+**Part E:** Take the average of the n numbers obtained in *Part D* in order to obtain the LOOCV estimate for the test error. Comment on the results.
+
+**Results: **Test error was rougly 45% when applying the mean function on the output of the loop.
+
+```{r, echo = FALSE}
+kable(mean(weeklyOutput), caption = 'LOOCV Error Rate - Weekly', col.names = NULL)
+```
+
+# Auto Cross-Validation
+
+**Exercise 4:** Write your own code (similar to Q #3 above) to estimate test error using 6-fold cross validation for fitting linear regression with *mpg ~ \[horsepower + horsepower^2\]* from the Auto data in the ISLR library. You should show the code in your final PDF.
+
+**Results: **In order to try multiple folds, the two options that came to mind were to create a function or a loop that would try multiple number of folds. The easiest way in my opinion is just making a function that can be run multiple times with the number of folds as the argument. The loop goes from 1 to the number of folds given to the function. The variable 'fold' sets up the breaks based on the number of rows n the dataset (could adjust the function to accept dataset for future use). The function splits the dataset up between train/test sets, trains the model, makes a prediction, and iterates for the number of folds calculating the error and returns the average/MSE of the error.
+
+
+```{r, echo = TRUE}
+# set seed
+set.seed(702)
+data("Auto", package = 'ISLR')
+
+# function iterating number of folds from parameters
+CVnFoldLinMod <- function(numFold){
+
+fold <- cut(seq(1, nrow(Auto)), breaks = numFold, labels = FALSE)
+meanSqEr <- c()
+
+for (i in 1:numFold){
+  testIndex <- which(fold == i, arr.ind = TRUE)
+  train <- Auto[testIndex,]
+  test <- Auto[-testIndex,]
+  model <- lm(mpg ~ horsepower + I(horsepower^2), data = train)
+  prediction <- predict(model, test)
+  meanSqEr[i] <- mean((test$mpg - prediction)^2)
+  
+}
+return(mean(meanSqEr))
+}
+
+
+sixFoldAuto <- CVnFoldLinMod(6)
+```
+
+```{r, echo = FALSE}
+kable(sixFoldAuto, caption = 'Six Fold CV MSE', col.names = NULL)
+```
+
+# Wine Type Predictions - Model Comparison
+
+**Exercise 5:** Last homework you started analyzing the dataset you chose. Now continue the analysis and perform Logistic Regression, KNN, LDA, QDA, MclustDA, and MclustDA with EDDA. 
+
+**Results: **After loading the csv files, the wine types are defined as 1/0 for binary output. Then a train/test split is done at a 75/25 ratio. 
+
+Each method does a good job predicting the type of wine when all predictors are included in the model. With no tuning of parameters, all modeling methods are above 90% with several methods at nearly 100% accuracy. Looking back, I can see why this dataset is mainly intended for regression analysis with the rating as the dependent variable.
+
+```{r, echo = FALSE}
+set.seed(702)
+# read datasets and show heads of datasets
+
+wineQualityRed <- read.csv("winequality-red.csv", sep = ';')
+wineQualityWhite <- read.csv('winequality-white.csv', sep = ';')
+
+#head(as.data.frame(wineQualityRed))
+#head(as.data.frame(wineQualityWhite))
+```
+
+```{r, echo = FALSE}
+# add column to each dataframe of what type of wine 
+wineQualityRed$type <- 1
+wineQualityWhite$type <- 0
+
+# combine dataframes with rbind
+wineData <- rbind(wineQualityRed, wineQualityWhite)
+#head(wineData)
+
+#as.factor(wineData$type)
+
+trainIndex <- .75 * nrow(wineData)
+
+trainIndex <- sample(seq_len(nrow(wineData)), size = trainIndex)
+
+wineTrain <- wineData[trainIndex,]
+wineTest <- wineData[-trainIndex,]
+```
+
+```{r, echo = FALSE}
+# run each model type
+wineGLM <- glm(type ~ ., data = wineTrain, family = binomial)
+wineGLMProb <- predict(wineGLM, wineTest, type = 'response')
+wineGLMPred <- ifelse(wineGLMProb > 0.5, 1,0 )
+
+GLMconfMatrix <- table(wineTest$type, wineGLMPred)
+GLMAcc <- (GLMconfMatrix[1,1] + GLMconfMatrix[2,2])/sum(nrow(wineTest))
+
+```
+
+```{r, echo = FALSE}
+
+wineLDA <- lda(formula = type ~., data = wineTrain)
+wineLDAPred <- predict(wineLDA, wineTest, type = 'response')
+
+# create confusion matrix
+LDAConfMatrix <- table(wineTest$type, wineLDAPred$class)
+# calc accuracy
+LDAAcc <- (LDAConfMatrix[1,1] + LDAConfMatrix[2,2])/sum(nrow(wineTest))
+
+```
+
+```{r, echo = FALSE}
+wineQDA <- qda(type ~., data = wineTrain)
+wineQDAPred <- predict(wineQDA, wineTest, type = 'response')
+
+QDAConfMatr <- table(wineTest$type, wineQDAPred$class)
+QDAAcc <- (QDAConfMatr[1,1] + QDAConfMatr[2,2])/sum(nrow(wineTest))
+```
+
+
+```{r, echo = FALSE}
+outputComp <- cbind.data.frame(GLMAcc, LDAAcc, QDAAcc)
+
+kable(outputComp, col.names = c('GLM', 'LDA', 'QDA'), caption = 'Accuracy Comparison')
+
+```
+
+
+```{r, echo = FALSE}
+# build mclust model
+wineMclust <- MclustDA(wineTrain[,1:12], class = wineTrain[,13])
+
+# build summary of model
+clustSumm <- summary(wineMclust, parameters = TRUE, what = 'classification', newdata = wineTest[,1:12], newclass = wineTest[,13])
+
+mclustDAError <- 1 - clustSumm$err.newdata
+
+```
+
+```{r, echo = FALSE}
+# build EDDA model
+wineMclustEDDA <- MclustDA(wineTrain[,1:12], class = wineTrain[,13], modelType = 'EDDA')
+
+# store summary of model
+mclustEDDASumm <- summary(wineMclustEDDA, parameters = TRUE, what = 'classification', newdata = wineTest[,1:12], newclass = wineTest[,13])
+
+mclustEDDAErr <- 1 - mclustEDDASumm$err.newdata
+
+mclustResult <- cbind.data.frame(mclustDAError, mclustEDDAErr)
+
+```
+
+```{r, echo = FALSE}
+kable(mclustResult, col.names = c('MclustDA', 'MclustEDDA'), caption = 'Mclust Comparison - Wine Classification')
+```
+
+```{r, echo = FALSE}
+#knn k = 1
+knn1 <- knn(as.matrix(wineTrain[,1:12]), as.matrix(wineTest[,1:12]), as.factor(wineTrain[,13]), k=1)
+# k = 3
+knn3 <- knn(wineTrain[,1:12], wineTest[,1:12], wineTrain[,13], k = 3)
+# k = 5
+knn5 <- knn(wineTrain[,1:12], wineTest[,1:12], wineTrain[,13], k = 5)
+# k= 10
+knn10 <- knn(wineTrain[,1:12], wineTest[,1:12], wineTrain[,13], k = 10)
+
+```
+
+```{r, echo = FALSE}
+# confusion matrix for knn
+confMatrKNN1 <- table(wineTest$type, knn1)
+confMatrKNN2 <- table(wineTest$type, knn3)
+confMatrKNN3 <- table(wineTest$type, knn5)
+confMatrKNN4 <- table(wineTest$type, knn10)
+
+# calc accuracy for knn
+KNNAccuracy1 <- (confMatrKNN1[1,1] + confMatrKNN1[2,2])/sum(nrow(wineTest))
+KNNAccuracy2 <- (confMatrKNN2[1,1] + confMatrKNN2[2,2])/sum(nrow(wineTest))
+KNNAccuracy3 <- (confMatrKNN3[1,1] + confMatrKNN3[2,2])/sum(nrow(wineTest))
+KNNAccuracy4 <- (confMatrKNN4[1,1] + confMatrKNN4[2,2])/sum(nrow(wineTest))
+
+# construct dataframe for output
+knnComp <- cbind.data.frame(KNNAccuracy1, KNNAccuracy2, KNNAccuracy3, KNNAccuracy4)
+kable(knnComp, caption = 'KNN Comparison', col.names = c('k=1','k=3','k=5','k=10'))
+```
+
+
+
+
+

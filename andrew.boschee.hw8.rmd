@@ -1,0 +1,362 @@
+---
+title: "Homework 8"
+author: "Andrew Boschee"
+date: "3/30/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F,warning=F,message=F)
+```
+
+
+```{r, echo = FALSE}
+library(ggplot2)
+library(MASS)
+library(ISLR)
+library(knitr)
+library(glmnet)
+library(pls)
+library(leaps)
+library(gridExtra)
+#install.packages('pls')
+#install.packages('glmnet')
+
+```
+
+
+**Question 6.8.4:** Suppose we estimate the regression coefficients in a linear regression model by minimizing
+\[\sum^n_{i=1}(y_i - \beta_0 - \sum^p_{j=1}\beta_jx_{ij})^2 + \lambda\sum^p_{j=1}\beta^2_j\] for a particular value of \[\lambda\]. For parts (a) through (e), indicate which of i. through v. is correct. Justify your answer.
+
+*i. Increase initially, and then eventually start decreasing in an inverted U shape.*
+*ii. Decrease initially, and then eventually start increasing in a U shape.*
+*iii. Steadily increase.*
+*iV. Steadily decrease.*
+*v. Remain constant.*
+
+**Part A:** As we increase lambda from 0, the training RSS will:
+
+Model will be less flexibile and will result in steady increase of training error. (iii)
+
+**Part B:** As we increase lambda from 0, the test RSS will:
+
+RSS will initially decrease and increase in U shape as the model becomes less flexible. (ii)
+
+**Part C:** As we increase lambda from 0, the variance will:
+
+Steady decrease in variance from additional constraints. (iv)
+
+**Part D:** As we increase lambda from 0, the (sqaured) bias will:
+
+Decrease in flexibility for model will steadily increase bias. (iii).
+
+**Part E:** As we increase **lambda** from 0, the ireeducible error will:
+
+Irreducible error is constant regardless of lambda. (v)
+
+# College Applications Predictions
+
+**Question 6.8.9:** In this exercise, we will predict the number of applications received using the other variables in the College data set.
+
+**Part A:** Split the data into a training and test set.
+
+Using a 75/25 ratio, the training and test sets are split with a summary in the table below.
+
+```{r, echo=FALSE}
+# set specified seed
+set.seed(702)
+
+# load dataset
+data('College', package = 'ISLR')
+
+#set sample size
+sampleSize <- 0.75 * nrow(College)
+
+# index rows
+trainIndex <- sample(seq_len(nrow(College)), size = sampleSize)
+
+# split train and test set
+train <- College[trainIndex, ]
+test <- College[-trainIndex, ]
+
+# count rows for train and test sets
+trainSize <- nrow(train)
+testSize <- nrow(test)
+
+totalSize <- trainSize + testSize
+
+# kable output
+kable(cbind.data.frame(totalSize, trainSize, testSize), col.names = c('Total', 'Train', 'Test'), caption = 'Data Split Summary (75/25)')
+```
+
+## MLR
+
+**Part B:** Fit a linear model using least squares on the training set, and report the test error obtained.
+
+Starting with a linear model, predictions are made on the test set giving an initial error rate to compare with other models.
+
+```{r, echo = FALSE}
+set.seed(702)
+
+# build linear model
+linMod <- lm(Apps ~ ., data = train)
+
+#make predictions
+predLin <- predict(linMod, test)
+# calc mse
+collegeMSE <- mean((predLin - test$Apps)^2)
+#kable output
+kable(collegeMSE, caption = 'MSE - Linear Model - College', col.names = NULL)
+
+```
+## Ridge Regression
+
+**Part C:** Fit a ridge regression model on the training set, with lambda chosen by cross-validation. Report the test error obtained. 
+
+After building the model with cv.glmnet() function, the optimal lambda value was chosen and used to make predictions on the test dataset. Using ridge regression with ten folds we see a a higher MSE value in comparison to MLR from part A. 
+
+```{r, echo = FALSE}
+# repeat steps from prior model with adjusted functions and parameters
+set.seed(702)
+
+train2 <- model.matrix(Apps ~ ., data = train)
+test2 <- model.matrix(Apps ~ ., data = test)
+
+colGrid <- 10 ^ seq(10, -2, length = 100)
+
+ridgeMod <- cv.glmnet(train2, train$Apps, alpha = 0, lambda = colGrid)
+
+minLambda <- ridgeMod$lambda.min
+
+ridgePred <- predict(ridgeMod, s=minLambda, newx = test2)
+```
+
+```{r, echo = FALSE}
+# calc result and output with kable
+ridgeMSE <- mean((test$Apps - ridgePred)^2)
+kable(ridgeMSE, caption = 'MSE - Ridge Regression - College Data', col.names = NULL)
+```
+
+
+
+
+
+
+
+## Lasso
+
+**Part D:** Fit a lasso model on the training set, with lambda chosen by cross-validation. Report the test error obtained, as well as the number of non-zero coefficient estimates. 
+
+While Lasso performed better than ridge regression, it still had a slightly higher MSE in comparison to MLR in part B. From the table, we can also see the value of 16 for the count of non-zero coefficient estimates. I didn't expect to see quite so many to be used in the model. That seems like quite a few factors to take into account.
+
+```{r, echo = FALSE}
+# repeat steps from prior model with proper model function and parameters
+set.seed(702)
+lassoMod <- cv.glmnet(train2, train$Apps, alpha = 1, lambda = colGrid)
+
+minLambdaLasso <- lassoMod$lambda.min
+
+lassoPred <- predict(lassoMod, s = minLambdaLasso, newx = test2)
+
+lassoErr <- mean((test$Apps - lassoPred)^2)
+
+lambdaCoefficients <- predict(lassoMod, s = minLambdaLasso, type = 'coefficients')
+
+coefficients <- lambdaCoefficients[lambdaCoefficients != 0]
+
+kable(lassoErr, caption = 'MSE - Lasso - College Data', col.names = NULL)
+kable(length(coefficients), caption = 'Count of Non-Zero Coefficient Estimates', col.names = NULL)
+```
+
+## Principal Component Regression
+
+**Part E:** Fit a PCR model on the training set, with *M* chosen by cross-validation. Report the test error obtained, along with the value of *M* selected by cross-validation. 
+
+PCR gave identical result to MLR and better than both ridge and lasso models.
+
+```{r, echo = FALSE}
+set.seed(702)
+
+# repeat prior steps with adjusted function and params
+PCRMod <- pcr(Apps ~ ., data = train, scale = TRUE, validation = 'CV')
+
+M <- ncol(College) - 1
+
+PCRpred <- predict(PCRMod, test, ncomp = M)
+
+PCRmse <- mean((test$Apps - PCRpred)^2)
+
+kable(PCRmse, caption = 'MSE - PCR - College Data', col.names = NULL)
+```
+
+## Partial Least Squares
+
+**Part F:** Fit a PLS model on the training set, with *M* chosen by cross-validation. Report the test error obtained, along with the value of *M* selected by cross-validation. 
+
+PLS gives identical results as PCR and on the lower end of the error rates when comparing models
+
+```{r, echo = FALSE, fig.height= 5, fig.width=10}
+# repeat prior steps with adjusted function and params
+set.seed(702)
+PLSmod <- plsr(Apps ~ ., data = train, scale = TRUE, validation = 'CV')
+
+
+PLSpred <- predict(PLSmod, test, ncomp = M)
+
+PLSmse <- mean((test$Apps - PLSpred)^2)
+
+kable(PLSmse, caption = 'MSE - PLS - College Data', col.names = NULL)
+```
+
+## PLS vs PCR
+
+```{r, echo = FALSE, fig.height= 5, fig.width=10}
+
+validationplot(PLSmod, val.type = 'MSEP', main = 'PLS')
+```
+
+```{r, echo = FALSE, fig.height= 5, fig.width=10}
+
+validationplot(PCRMod, val.type = 'MSEP', main = 'PCR')
+```
+
+## Results
+
+**Part G:** Comment on the results obtained. How accurately can we predict the number of college applications received? Is there much difference among the test errors resulting from these 5 approaches?
+
+From the results, Ridge and Lasso models did not perform as well as other methods and none of them were very impressive overall. Ridge definitely performed the worst while there was not much separtation regarding MSE overall with the other methods
+
+With PCR and PLS providing identical results, plots above look at the comparison of error regarding the number of components. While they both flatten out around four or five components, PLS has a quicker drop in MSE, while PCR also seems to go up a tad bit between two and three.
+
+# Boston Crime Rate
+
+**Question 6.8.11:** We will now try to predict per capita crime rate in the **Boston** data set.
+
+**Part A:** Try out some of the regression methods explored in this chapter, such as best subset selection, the lasso, ridge regression, and PCR. Present and discuss resultls for the approaches that you consider.
+
+Similar to prior exercise, we will be using 75/25 split on the training and test set. Each of the listed methods are used in this step with output comparison at the end. It will be interesting to see the variables that are ssen as important when comparing forward and backward stepwise methods.
+
+```{r, echo = FALSE}
+set.seed(702)
+
+# load dataset
+data('Boston', package = 'MASS')
+#set samplesize
+sampleSize <- (0.75 * nrow(Boston))
+# assign index
+trainIndex <- sample(seq_len(nrow(Boston)), size = sampleSize)
+# split train and test set
+train <- Boston[trainIndex,]
+test <- Boston[-trainIndex,]
+# count train and test set rows
+trainSize <- nrow(train)
+testSize <- nrow(test)
+
+totalSize <- trainSize + testSize
+
+kable(cbind.data.frame(totalSize, trainSize, testSize), col.names = c('Total', 'Train', 'Test'), caption = 'Data Split Summary (75/25)')
+```
+
+```{r, echo = FALSE}
+set.seed(702)
+# define train and test set for ridge and lasso
+train2 <- model.matrix(crim ~ ., data = train)
+test2 <- model.matrix(crim ~ ., data = test)
+
+# build ridge model and calc MSE
+bostRidge <- cv.glmnet(train2, train$crim, alpha = 0, lambda = colGrid)
+bostLambda <- bostRidge$lambda.min
+ridgePred <- predict(bostRidge, s = bostLambda, newx = test2)
+ridgeMSE <- mean((test$crim - ridgePred)^2)
+
+#ridgeMSE
+```
+
+```{r, echo = FALSE}
+set.seed(702)
+# build lasso model and calc MSE
+bostLass <- cv.glmnet(train2, train$crim, alpha = 1, lambda = colGrid)
+bostLambda2 <- bostLass$lambda.min
+lassPred <- predict(bostLass, s = bostLambda2, newx = test2)
+lassMSE <- mean((test$crim - lassPred)^2)
+
+#lassMSE
+```
+
+```{r, echo = FALSE}
+set.seed(702)
+# pcr model for bost dataset
+bostPCR <- pcr(crim ~ .,  data = train, scale = TRUE, validation = 'CV')
+M <- ncol(Boston) - 1
+PCRpred <- predict(bostPCR, test, ncomp = M)
+PCRmse <- mean((test$crim - PCRpred)^2)
+
+#PCRmse
+```
+
+```{r, echo = FALSE}
+set.seed(702)
+# substt function from lectures
+predict.regsubsets <- function(object, newdata, id, ...) {
+  form <- as.formula(object$call[[2]])
+  mat <- model.matrix(form, newdata)
+  coefi <- coef(object, id=id)
+  xvars <- names(coefi)
+  mat[,xvars]%*%coefi
+}
+fwdStep <- regsubsets(crim ~ ., data = train, nvmax = M-1, method = 'forward')
+fwdMSE <- rep(NA, M-1)
+for(i in 1:(M-1)){
+  fwdPred <- predict(fwdStep, test, id = i)
+  fwdMSE[i] <- mean((test$crim - fwdPred)^2)
+}
+# choose lowest MSE result from grouping
+fwdMSE <- fwdMSE[which.min(fwdMSE)]
+
+#fwdMSE
+```
+
+```{r, echo = FALSE}
+set.seed(702)
+# build backward stepwise model
+bwdStep <- regsubsets(crim ~., data = train, nvmax = M-1, method = 'backward')
+# construct empty vector to store results
+bwdMSE <- rep(NA, M-1)
+bwdCoeff <- rep(NA, M-1)
+# loop through for each amount of predictors
+for(i in 1:(M -1)){
+  bwdPred <- predict(bwdStep, test, id = i)
+  bwdMSE[i] <- mean((test$crim - bwdPred)^2)
+}
+
+# choose lowest mse from groupings
+bwdMSEBest <- bwdMSE[which.min(bwdMSE)]
+
+#bwdMSE
+```
+
+## Model Comparison
+
+**Part B:** Propose a model (or set of models) that seem to perform well on this data set, and justify your answer. Make sure that you are evaluating model performance using validation set error, cross-validation, or some other reasonable alternative (not training error).
+
+Models Used: Backward Stepwise Selection, Forward Stepwise Selection, Principal Component Regression, Lasso, and Ridge Regression.
+
+All of these models where farly close in the end with backward stepwise regression taking a slight edge over the lasso model.
+
+```{r, echo = FALSE}
+
+kable(cbind.data.frame(bwdMSEBest, fwdMSE, PCRmse, lassMSE, ridgeMSE), col.names = c('Backward', 'Forward','PCR','Lasso','Ridge'), caption = 'Boston Model MSE Comparison')
+```
+
+## Best Model - Backward Stepwise Selection (Number Features = 4)
+
+**Part C:** Does your chosen model involve all of the features in the data set? Why or why not?
+
+Backward selection gave optimal results with only 4 of the features used in the model. When going through the loop, the mean squared error value began to go back up once more features were removed. The model saw that when there were more than four features being used they were not useful and dropping them resulted in less noise with better predictions.
+
+```{r, echo = FALSE}
+# output model summary
+modelCoeff <- as.data.frame(coef(bwdStep, id = 4))
+kable(modelCoeff)
+
+```
