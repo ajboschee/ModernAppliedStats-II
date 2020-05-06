@@ -1,0 +1,199 @@
+---
+title: "Zadora Glass"
+author: "CPS"
+date: "2/9/2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+#install.packages("comparison")
+library(comparison)
+
+```
+
+```{r glass}
+data(glass)
+gah.glass=as.data.frame(glass)
+gah.glass[1:10,]
+```
+
+```{r}
+inde=paste(as.matrix(gah.glass[, 1]),
+           as.matrix(gah.glass[, 2]), 
+           sep=":")
+inde[1:10]
+#table(inde)
+med.glass=NULL
+med.names=NULL
+for (i in unique(inde)){
+  tmp.dat=apply(gah.glass[i==inde, -(1:2)], 2, median)
+  med.glass=rbind(med.glass, tmp.dat)
+  med.names=rbind(med.names, gah.glass[i==inde, 1:2][1,])
+}
+med.glass=data.frame(med.names, med.glass)
+head(med.glass)
+```
+
+```{r}
+
+pw.diffs=NULL
+pw.inde=NULL
+for (i in 1:(dim(med.glass[1:100,])[1]-1)){
+  for (j in (i+1):dim(med.glass[1:100,])[1]){
+    pw.diffs=rbind(pw.diffs, abs(med.glass[i, -(1:2)]-med.glass[j, -(1:2)]))
+    pw.inde=rbind(pw.inde, cbind(as.vector(med.glass[i, 1:2]), as.vector(med.glass[j, 1:2])))
+  }
+  #print(i)
+  #flush.console()
+}
+
+
+
+pw.diffs.tst=NULL
+pw.inde.tst=NULL
+for (i in 101:(199)){
+  for (j in (i+1):200){
+    pw.diffs.tst=rbind(pw.diffs.tst, abs(med.glass[i, -(1:2)]-med.glass[j, -(1:2)]))
+    pw.inde.tst=rbind(pw.inde.tst, cbind(as.vector(med.glass[i, 1:2]), as.vector(med.glass[j, 1:2])))
+  }
+  #print(i)
+  #flush.console()
+}
+
+
+```
+
+
+```{r}
+pw.diffs[1:10, ]
+pw.inde[1:10, ]
+pw.diffs.tst[1:10, ]
+pw.inde.tst[1:10, ]
+```
+
+
+```{r}
+library(MASS)
+type.comp=c("wi", "bw")[1+(pw.inde[,1]!=pw.inde[,3])]
+lda.dat=data.frame(type.comp, pw.diffs)
+lda.mod=lda(type.comp~., data=lda.dat, CV=T)
+mean(lda.mod$class==type.comp)
+mean("bw"==type.comp)
+mean(lda.mod$class=="bw")
+```
+So what is happening...  
+Remember that we had 4 fragments from each source, with 25 sources.
+
+```{r}
+lda.mod=lda(type.comp~., data=lda.dat)
+lda.mod$prior
+```
+
+
+This gives us ${4^2}\times{25\choose 2}=4800$ between source comparisons, but only ${4\choose2}\times{25}=150$ within source comparisons. So the prior rate of encountering a with in comparison is only $3.030\%$.
+
+
+Does this make sense? Is this what we want?
+
+
+
+```{r}
+lda.mod$scaling
+```
+
+Transforming the training data based off of the LD1 scaling.
+
+```{r}
+scales.pwdiffs=as.matrix(pw.diffs)%*%as.matrix(lda.mod$scaling)
+dat.plot=data.frame(type.comp, scales.pwdiffs)
+head(dat.plot)
+```
+
+
+Plots to look at separation. 
+```{r}
+library(ggplot2)
+p=ggplot(dat.plot, aes(x=type.comp, y=LD1))+geom_violin()
+p
+```
+
+This a little hard to see but we are getting good separation between the measurements that come from within  vs between comparisons.
+
+```{r}
+ecdf.wi=ecdf(scales.pwdiffs[type.comp=="wi"])
+ecdf.bw=ecdf(scales.pwdiffs[type.comp=="bw"])
+xs=seq(-6, 0, .001)
+plot(ecdf.wi(xs), ecdf.bw(xs), type="b", pch=16, cex=.3)
+abline(0,1)
+```
+
+
+How should we fix this?  We do not know how many sets of objects we will be encountering that share a source.  
+
+One what to think about it is to say, on average, what is the chance that I will incorrectly say two fragments came from different sources, when in truth they actually came from different sources. 
+
+In this approach we will need to choose a rate for at which we encounter *random non-matches* (RNM).
+
+
+
+```{r}
+plot(density(scales.pwdiffs[type.comp=="wi"]))
+thres=quantile(scales.pwdiffs[type.comp=="wi"], probs = .05)
+abline(v=thres)
+```
+
+
+This is a threshold set so that the RNMP is .05.
+
+Lets look at the RMP for the threshold of `r thres`, which will give us an rmp of  `r ecdf.bw(thres)`.
+
+```{r}
+plot(density(scales.pwdiffs[type.comp=="bw"]))
+abline(v=thres)
+```
+
+
+## Looking at the test data.
+Lets set up our test data for the LD1 projections.
+
+
+
+```{r}
+type.comp.tst=c("wi", "bw")[1+(pw.inde.tst[,1]!=pw.inde.tst[,3])]
+scales.pwdiffs.tst=as.matrix(pw.diffs.tst)%*%as.matrix(lda.mod$scaling)
+dat.plot.tst=data.frame(type.comp.tst, scales.pwdiffs.tst)
+head(dat.plot.tst)
+```
+
+The red is the original ROC curve.  Notice that it gets better separation that the test.
+
+```{r}
+ecdf.wi.tst=ecdf(scales.pwdiffs.tst[type.comp.tst=="wi"])
+ecdf.bw.tst=ecdf(scales.pwdiffs.tst[type.comp.tst=="bw"])
+xs=seq(-6, 0, .001)
+plot(ecdf.wi.tst(xs), ecdf.bw.tst(xs), type="b", pch=16, cex=.3)
+lines(ecdf.wi(xs), ecdf.bw(xs), type="b", pch=16, cex=.3, col="red")
+abline(0,1)
+```
+
+
+
+
+For the test data, lets look at the RNMP for the threshold of `r thres`, which will give us an RNMP of  `r ecdf.wi.tst(thres)` and a corresponding RMP 
+`r ecdf.bw.tst(thres)`.
+
+Compared with the training RNMP of `r ecdf.wi(thres)` and a corresponding RMP of `r ecdf.bw(thres)`.
+
+We will talk about these estimates of the accuracy in next set of lectures.
+
+
+
+
