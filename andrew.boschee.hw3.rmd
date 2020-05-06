@@ -1,0 +1,376 @@
+---
+title: "Homework 3"
+author: "Andrew Boschee"
+date: "2/7/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F, warning = F, cache = F)
+```
+
+
+```{r, echo = FALSE, warning = FALSE}
+# load packages
+
+#install.packages('corrplot')
+
+library(ggplot2)
+library(ISLR)
+library(gridExtra)
+library(GGally)
+library(corrplot)
+library(knitr)
+library(dplyr)
+
+```
+
+*No collaborators*
+*Outside Resources: rdocumentation.com*
+
+Question 4.7.1, pg 168 - Using a little bit of algebra, prove that (4.2) is equivalent to (4.3). In other words, the logistic function representation and the logit representation for the logistic regression model are equivalent.
+
+*Logistic Function:* \[p(X) = \frac{e^{\beta_0+\beta_1X}}{1 + e^{\beta_0+\beta_1X}}\]
+
+
+\[\frac{1}{p(X)} = \frac{1+e^{\beta_0 + \beta_1X}}{e^{\beta_0 + \beta_1X}}\]
+
+
+\[\frac{1}{p(X)} = \frac{1}{e^{\beta_0+\beta_1X}} + \frac{e^{\beta_0+\beta_1X}} {e^{\beta_0+\beta_1X}}\]
+
+
+\[\frac{1}{p(X)} = 1 + \frac{1}{e^{\beta_0 + \beta_1X}}\]
+
+
+\[e^{\beta_0 + \beta_1X} = \frac{p(X)}{1-p(X)}\]
+
+
+Question 4.7.10, pg 171 - This question should be answered using teh Weekly data set, which is part of the ISLR package. This data is similar in nature to the Smarket data from this chapter's lab, exceot that it contains 1,089 weekly returns for 21 years, from the beginning of 1990 to the end of 2010.
+
+a. Produce some numerical and graphical summaries of the Weekly data. Do there appear to be any patterns?
+
+```{r, echo = FALSE, fig.width = 10}
+# load dataset
+data('Weekly', package = 'ISLR')
+#head(Weekly)
+
+summary(Weekly)
+
+# add binary column for direction
+Weekly$Direction2 <- ifelse(Weekly$Direction == 'Down', 0, 1)
+```
+
+```{r, echo = FALSE, fig.width = 10}
+# plot correlation
+weeklyCorr <- round(cor(Weekly[, -9]), 4)
+
+# output table with kable
+kable(as.data.frame(weeklyCorr), caption = 'Correlation Table')
+```
+
+From the tables given, Lag2 and Lag4 seem to show the most correlation among the variables. Can see that there is negative correlation among all of the other lag variables.
+
+
+```{r, echo = FALSE, fig.width = 10, fig.height=5}
+#correlation plot
+corrplot(weeklyCorr, type = 'upper', order = 'hclust',t1.col='black', t1.srt =45)
+
+```
+
+
+```{r, echo = FALSE, fig.width = 10, fig.height=5}
+# volume vs year
+plot(Volume ~ Year, data = Weekly, main = 'Volume vs year')
+```
+
+```{r, echo = FALSE, fig.width = 10, fig.height=5}
+# replicate with ggplot
+ggplot(Weekly, aes(x=Year, y=Volume))+
+  geom_point()+
+  labs(x='Year', y='Volume', title = 'Volume vs Year')
+
+```
+
+We can see that the volume has drastically increase in recent years as technology and high frequency trading has evolved. Interesting to see how this changes in upcoming years as brokerage firms are no longer charging transaction fees for trades. Another thing that comes to mind besides technological advances is the economy in general as the frequency increased up until 2010 eventually going down as the economy struggled.
+
+
+b. Use the fully data set to perform a logistic regression with Direction as the response and the five lag variables plus Volume as predictors. Use the summary function to print the results. Do any of the predictors appear to be statistically significant? If so, which ones?
+
+The only variable that appears to be significant is Lag2. This comes as a bit of a surprise as I was thinking that Volume would most likely stand out in this scenario.
+
+
+```{r, echo = FALSE}
+# bild glm model with all variables
+weeklyGLM <- glm(formula = Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, family = binomial, data = Weekly)
+
+# print summary
+summary(weeklyGLM)
+
+# pull p values
+weeklyGLMp <- summary(weeklyGLM)$coefficients[,4]
+
+# output p values with kable
+kable(weeklyGLMp, col.names = 'P-Value', caption= 'P-Values of Predictors')
+
+```
+
+c. Compute the confusion matrix and overall fraction of correct predictions. Explain what the confusion matrix is telling you about the types of mistakes made by logistic regression.
+
+\pagebreak
+
+We can see that the model was very optimistic guessing 987 weeks up and 102 down in comparison to the 604/484 that actually occurred. The confusion matrix shows that there were many false positives as a result of this in the top-right column where there were 430 misclassifications of going up but instead went down. There were 48 false negatives, 557 true positives, and 54 true negatives. This resulted in an unimpressive 56 % accuracy
+
+
+```{r, echo = FALSE}
+
+# make prediction
+weeklyResp <- predict(weeklyGLM, type = 'response')
+# classify as up or down based 
+weeklyPred <- as.factor(ifelse(weeklyResp > 0.5, 'Up', 'Down'))
+
+# cbind as dataframe
+weeklyDf <- cbind.data.frame(Weekly, weeklyPred)
+```
+
+```{r, echo = FALSE}
+
+# mark as correct if prediction matches
+weeklyDf$Result <- ifelse(weeklyDf$Direction == weeklyDf$weeklyPred, 'Correct','Incorrect')
+
+# create confusion matrix
+weeklyConMatr <- table(weeklyDf$Direction, weeklyDf$weeklyPred)
+
+
+# output using kable to compare results
+kable(weeklyConMatr, caption = 'Prediction Confusion Matrix')
+
+kable(summary(weeklyDf$weeklyPred), caption= 'Predictions')
+kable(summary(weeklyDf$Direction), caption = 'Actual')
+```
+
+```{r, echo = FALSE}
+
+# calculate accuracy from confusion matrix
+weeklyAccur <- weeklyConMatr[1,1] + weeklyConMatr[2,2]
+weeklyAccur <- weeklyAccur / sum(nrow(weeklyDf))
+
+kable(weeklyAccur, col.names = 'Accuracy', caption = 'Accuracy of Predictions')
+```
+
+```{r, echo = FALSE}
+
+# calculate sensitivity
+weeklySens <- weeklyConMatr[2,2]/(weeklyConMatr[2,2] + weeklyConMatr[2,1])
+
+weeklySpec <- weeklyConMatr[1,1]/(weeklyConMatr[1,1] + weeklyConMatr[1,2])
+
+```
+
+d. Now fit the logistic regression model using a training data period from 1990 to 2008, with Lag2 as the only predictor. Compute the confusion matrix and the overall fraction of correct predictions for the held out data (that is, the data from 2009 and 2010).
+
+```{r, echo = FALSE}
+
+# split train and test up by year as instructed
+weeklyTrain <- subset(weeklyDf, Year < 2009)
+weeklyTest <- subset(weeklyDf, Year >= 2009)
+
+# create model with lag2 as only predictor
+weeklyGLM2 <- glm(formula = Direction ~ Lag2, data = weeklyTrain, family = binomial)
+
+# give summary
+#summary(weeklyGLM2)
+```
+
+```{r, echo = FALSE}
+
+# make predictions and classify as up/down
+testResp <- predict(weeklyGLM2, weeklyTest, type = 'response')
+testPred <- as.factor(ifelse(testResp > 0.5, 'Up','Down'))
+
+# combine column to main df
+weeklyTestDf <- cbind.data.frame(weeklyTest, testPred)
+```
+
+```{r, echo = FALSE}
+
+# create confusion matrix 
+testConfMatr <- table(weeklyTestDf$Direction, weeklyTestDf$testPred)
+kable(testConfMatr, caption = 'Test Set Confusion Matrix')
+```
+
+Question 4.7.11, pg 172 - In this problem, you will develop a model to predict whether a given car gets high or low gas mileage based on the Auto data set. 
+
+a. Create a binary variable mpg01, that contains a 1 if mpg contains a value above its median, and a 0 if mpg contains a value below the median.
+
+Created variable as factor using ifelse function comparing median mpg to mpg of each row.
+
+```{r, echo = FALSE}
+
+# load dataset
+data('Auto', package = 'ISLR')
+
+```
+
+```{r, echo = FALSE}
+
+# add column based on median of mpg
+Auto$mpg01 <- as.factor(ifelse(Auto$mpg > median(Auto$mpg), 1, 0))
+
+#head(Auto)
+```
+
+b. Explore the data set graphically in order to investigate the association between mpg01 and the other features. Which of the other features seem most likely to be useful in predicting mgp01? Scatterplots and boxplots may be useful tools to answer this question. Describe your findings.
+
+There were a few predictors that surprised me regarding there mpg being above the median. Acceleration is the first thing that caught my eye and there are a couple other factors that we don't see that I would be interested. Believe there are some correlations between many of these variables that can contribute to this difference (year as newer cars are more efficient, weight, hp). Second, horsepower had very wide IQR for not above median and very narrow IQR for those above the median as well as cylinders and displacement.   
+
+```{r, echo = FALSE, fig.height= 7, fig.width= 10}
+
+# base r plot
+par(mfrow = c(2,2))
+plot(Auto$cylinders ~ Auto$mpg01, xlab = 'MPG', ylab = 'Cylinders', main = 'MPG by Cylinders')
+plot(Auto$displacement ~ Auto$mpg01, xlab = 'MPG', ylab = 'Displacement', main = 'MPG by Displacement')
+plot(Auto$horsepower ~ Auto$mpg01, xlab = 'MPG', ylab = 'Horsepower', main = 'MPG by Horsepower')
+plot(Auto$weight ~ Auto$mpg01, xlab = 'MPG', ylab = 'Weight', main = 'MPG by Weight')
+```
+
+```{r, echo = FALSE, fig.height = 7, fig.width =10}
+
+#base r plot
+par(mfrow = c(2,2))
+plot(Auto$acceleration ~ Auto$mpg01, xlab = 'MPG', ylab = 'Acceleration', main = 'MPG by Acceleration')
+plot(Auto$year ~ Auto$mpg01, xlab = 'MPG', ylab = 'Year', main = 'MPG by Year')
+plot(Auto$origin ~ Auto$mpg01, xlab = 'MPG', ylab = 'Origin', main = 'MPG by Origin')
+```
+
+```{r, echo = FALSE, fig.width = 10, fig.height=5}
+
+# replication of prior plots in ggplot
+grid.arrange(
+ggplot(Auto, aes(mpg01,cylinders,mpg01))+
+  geom_boxplot()+
+  labs(x='MPG',y='Cylinders', title='MPG by Cylinders'),
+ggplot(Auto, aes(mpg01,displacement,mpg01))+
+  geom_boxplot()+
+  labs(x='MPG', y='Displacement', title = 'MPG by Displacement'),
+ggplot(Auto, aes(mpg01,horsepower,mpg01))+
+  geom_boxplot()+
+  labs(x='MPG', y='Horsepower', title = 'MPG by Horsepower'),
+ggplot(Auto, aes(mpg01,weight,mpg01))+
+  geom_boxplot()+
+  labs(x='MPG', y='Weight'), nrow = 2)
+
+```
+
+```{r, echo = FALSE, fig.width = 10, fig.height=5}
+
+# reproduce base r plots with ggplot
+grid.arrange(
+ggplot(Auto, aes(mpg01, acceleration, mpg01))+
+  geom_boxplot()+
+  labs(x='MPG', y='Acceleration', title = 'MPG by Acceleration'),
+ggplot(Auto, aes(mpg01, year, mpg01))+
+  geom_boxplot()+
+  labs(x='MPG', y='Year', title='MPG by Year'),
+ggplot(Auto, aes(mpg01, origin, mpg01))+
+  geom_boxplot()+
+  labs(x='MPG', y='Origin', title='MPG by Origin'), nrow = 2)
+
+```
+
+c. Split the data into training and test sets.
+
+Using a 75/25 split, the count of rows for the training and test sets are shown below.
+
+
+```{r, echo = FALSE}
+
+# create a sample size of 75% of the sample
+sampleRows <- (0.75 * nrow(Auto))
+# set seed for reproducibility
+set.seed(123)
+trainIndex <- sample(seq_len(nrow(Auto)), size = sampleRows)
+# split into train and test
+train <- Auto[trainIndex,]
+test <- Auto[-trainIndex,]
+kable(cbind(sum(nrow(Auto)), sum(nrow(train)), sum(nrow(test))), 
+      col.names = c('Auto Total Row Count', 'Train Set Row Count', 'Test Set Row Count'), 
+      caption = 'Row Count of Each DataSet (75/25)')
+
+```
+
+f. Perform logistic regression on the training data in order to predict mpg01 using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
+
+\textbf{See first column of table 10 at the bottom}
+
+```{r, echo = FALSE}
+
+# glm with all variables
+autoGLM <- glm(formula = mpg01 ~ cylinders + weight + displacement + horsepower + year, data = train, family = binomial)
+
+# glm without year variable
+autoGLM2 <- glm(formula = mpg01 ~ cylinders + weight + displacement + horsepower, data = train , family = binomial)
+
+autoPred <- predict(autoGLM2, test, type = 'response') 
+
+#kable(summary(autoGLM2)$coefficients)
+```
+
+Question 4 - Write a function in RMD that calculates the misclassification rate, sensitivity, and specificity. The inputs for this function are a cutoff point, predicted probabilities, and original binary response. Test your function using the model from 4.7.10 b. (This needs to be an actual function using the function() command, not just a chunk of code). This will be something you will want to use throughout the semester, since we will be calculating these a lot! *Show the function code you wrote in your final write-up.*
+
+Creating the function with three parameters (threshold, predictedProb, binaryResp), we can easily give this input to receive the misclassification rate, sensitivity, and specificity. First the function creates an empty list for the results. Second, the prediction output is compared to desired cutoff and assigned binary value and stored in predictions variable. Third, confusion matrix is created from binary response parameter and predictions created. Calculations are then made for each output and stored in results before being turned into a dataframe and returned as output. 
+
+\pagebreak
+
+```{r, echo=TRUE}
+
+# accept three inputs to calculate misclassification, sensitivity, and specificity
+classificationSummary <- function(threshold, predictedProb, binaryResp) {
+    output <- list()
+    predictions <- ifelse(predictedProb > threshold, 1, 0)
+    confMatrix <- table(binaryResp, predictions)
+    output$misclassificationRate <- 1- ((confMatrix[1,1] +confMatrix[2,2])/
+                                         (confMatrix[1,1] + 
+                                          confMatrix[1,2]+confMatrix[2,1] + 
+                                          confMatrix[2,2]))
+     
+    output$sensitivity <- confMatrix[2,2]/(confMatrix[2,2] + confMatrix[2,1])
+    output$specificity <- confMatrix[1,1]/(confMatrix[1,1] + confMatrix[1,2])
+    return(as.data.frame(output))
+}
+
+# store values from function for question
+classifSumm <- classificationSummary(0.5, weeklyResp, Weekly$Direction)
+
+```
+
+The classification summary shows the unimpressive classification rate along with the high sensitivity and low specificity. Adjusting the threshold may give better results in this situation, but would not be highly optimistic when it comes to predicting market returns.
+
+```{r, echo = FALSE}
+# output for weekly data
+kable(as.data.frame(classifSumm), caption = 'Classification Summary', col.names = c('Misclassification Rate', 'Sensitivity','Specificity'))
+
+```
+
+**Question 3, Part f from above**
+
+Using the function created in question 4, I applied it to the MPG with the arguments (0.5, autoPred, test$mpg01). Thsi gives us the misclassification rate, sensitivity and specificity. The misclassification rate was very impressive in comparison to the market predictions only misclassifying about 10%.
+
+This doesn't come as much of a surprise since the market has so many undefined factors and cars are a very standardized object.
+
+```{r, echo = FALSE}
+
+# use clasification summary on model
+mpgSummary <- classificationSummary(0.5, autoPred, test$mpg01)
+
+kable(mpgSummary, caption = 'MPG Classification Summary', col.names = c('Misclassification Rate', 'Sensitivity','Specificity'))
+```
+
+
+
+
+
+
+
+
+
+

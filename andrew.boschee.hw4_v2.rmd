@@ -1,0 +1,600 @@
+---
+title: "Homework 4"
+author: "Andrew Boschee"
+date: "2/14/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F, warning = F, cache = F)
+```
+
+```{r, echo = FALSE}
+library(ISLR)
+library(knitr)
+library(ggplot2)
+library(gridExtra)
+library(MASS)
+library(class)
+library(readr)
+
+```
+
+
+*No collaborators. Outside Resources: Rdocumentation.com, Elements of Statisitcal Learning*
+
+**Question 4.7.3, pg 168:** This problem relates to the QDA model, in which the observations within each class are drawn from a normal distribution with a class-specific mean vector and a class-specific covariance matrix. We conside the simple case where p = 1; i.e., there is only one feature.
+
+Suppose that we have K classes, and that if an observation belongs to the kth class then X comes from a one-dimensional normal distribution. X ~ N(\[\mu_k, \sigma^2_k\]). Recall that the density function for one-dimensional normal distribution is given in (4.11). Prove that in this case, the Bayes' classifier is not linear. Argue that it is in fact quadratic. 
+
+*Hint: For this problem, you should follow the arguments laid out in Section 4.4.2, but without making the assumption that \[\sigma^2_1 = ... = \sigma^2_k\].
+
+**Results:** 
+
+\[p_k(x) = \frac {\pi_k \frac {1} {\sqrt{2 \pi} \sigma_k} \exp(- \frac {1} {2 \sigma_k^2} (x - \mu_k)^2) } {\sum { \pi_l \frac {1} {\sqrt{2 \pi} \sigma_k} \exp(- \frac {1} {2 \sigma_k^2} (x - \mu_l)^2) }}\]
+
+
+\[Constant(c) = \frac { \frac {1} {\sqrt{2 \pi}}} {\sum { \pi_l \frac {1} {\sqrt{2 \pi} \sigma_k} \exp(- \frac {1} {2 \sigma_k^2} (x - \mu_l)^2) }}\]
+
+
+\[p_k(x) = c \frac{\pi_k}{\sigma_k} \exp(- \frac {1} {2 \sigma_k^2} (x - \mu_k)^2)\]
+
+
+\[log(p_k(x)) = log(c) + log(\pi_k) - log(\sigma_k) + (- \frac {1} {2 \sigma_k^2} (x - \mu_k)^2)\]
+
+
+\[log(p_k(x)) = (- \frac {1} {2 \sigma_k^2} (x^2 + \mu_k^2 - 2x\mu_k)) + log(\pi_k) - log(\sigma_k) + log(C')\]
+
+
+
+We can see x to the power of two in the equation making the function quadratic.
+
+
+**Question 4.7.5, pg 169:** We now examine the differences between LDA and QDA.
+
+**Part A.** If the Bayes decision boundary is linear, do we expect LDA or QDA to perform better on the training set? On the test set?
+
+In this situation, the QDA will most likely perform very well on the training set but potentially worse on the test set in comparison to the LDA due to overfitting by QDA.
+ 
+**Part B.** If the Bayes decision boundary is non-linear, do we expect LDA or QDA to perform better on the training set? On the test set?
+
+**Result:** In this non-linear event, I would expect for the QDA to peform better in both data sets.
+
+
+**Part C.** In general, as the sample size (*n*) increases, do we expect the test prediction accuracy of QDA relative to LDA to improve, decline, or be unchanged? Why?
+
+**Result:** QDA is recommended when the training size is very large to reduce concern regarding variance. As a result, as the training size increases, the QDA test prediction accuracy should improve relative to the LDA prediction accuracy.
+
+
+**Part D.** True or False: Even if the Bayes decision boundary for a given problem is linear, we will probably achieve a superior test error rate using QDA rather than LDA because QDA is flexible enough to model a linear decision boundary. Justify your answer.
+
+**Result:** False. QDA decision boundary has a higher variance without a decrease in bias. LDA will perform better in this instance.
+
+**Question 4.7.10, pg 171:** This question should be answered using the *Weekly* data set, which is part of the *ISLR* package. This data set is similar in nature to the *Smarket* data from this chapter's lab, except that it contains 1,089 weekly returns for 21 years, from the beginning of 1980 to the end of 2020.
+
+
+**Part E.** Repeat (d) using LDA.
+
+**Results:** Repeating process from homework 3, I split the weekly data into a training set and test set. Using Lag2 as predictor and direction as response variable on the training set, I then tested the model making predictions on the test set. 
+
+```{r, echo = FALSE}
+# classification function
+classificationSummary <- function(threshold, predictedProb, binaryResp) {
+    output <- list()
+    predictions <- ifelse(predictedProb > threshold, 1, 0)
+    confMatrix <- table(binaryResp, predictions)
+    output$misclassificationRate <- 1- ((confMatrix[1,1] +confMatrix[2,2])/
+                                         (confMatrix[1,1] + 
+                                          confMatrix[1,2]+confMatrix[2,1] + 
+                                          confMatrix[2,2]))
+     
+    output$sensitivity <- confMatrix[2,2]/(confMatrix[2,2] + confMatrix[2,1])
+    output$specificity <- confMatrix[1,1]/(confMatrix[1,1] + confMatrix[1,2])
+    return(as.data.frame(output))
+}
+
+
+```
+
+```{r, echo = FALSE}
+# load dataset
+data('Weekly', package = 'ISLR')
+
+# split train and test set
+weeklyTrain <- subset(Weekly, Year < 2009)
+weeklyTest <- subset(Weekly, Year >= 2009)
+
+# build LDA model
+weeklyLDA <- lda(Direction ~ Lag2, data = weeklyTrain)
+weeklyLDA
+
+```
+
+```{r, echo = FALSE}
+
+# make predictions of LDA model against test set
+ldaPred <- predict(weeklyLDA, weeklyTest)
+#ldaPred
+
+# create cofusion matrix
+ldaConfMat <- table(weeklyTest$Direction, ldaPred$class)
+
+kable(ldaConfMat, caption = 'LDA Confusion Matrix')
+
+```
+
+
+```{r, echo=FALSE}
+# calculate accuracy
+ldaAcc <- (ldaConfMat[1,1] + ldaConfMat[2,2]) / sum(nrow(weeklyTest))
+kable(ldaAcc, caption = 'LDA Accuracy', col.names = NULL)
+```
+
+\pagebreak
+
+**Part F:** Repeat (d) using QDA
+
+```{r, echo = FALSE}
+# build QDA model
+weeklyQDA <- qda(Direction ~ Lag2, data = weeklyTrain)
+#weeklyQDA
+
+```
+
+Can see that the QDA model is very optimistic and make predictions of the market always going up on the test set. Even though the accuracy is not much lower than LDA, it clearly has issues with false positves.
+
+```{r, echo = FALSE}
+# make QDA predictions
+qdaPred <- predict(weeklyQDA, weeklyTest)
+
+# confusion matrix from QDA
+qdaConfMatr <- table(weeklyTest$Direction, qdaPred$class)
+qdaConfMatr
+
+```
+
+```{r, echo = FALSE}
+
+# calculate accuracy of QDA
+qdaAccuracy <- (qdaConfMatr[1,1] + qdaConfMatr[2,2])/sum(nrow(weeklyTest))
+
+kable(qdaAccuracy, caption = 'QDA Accuracy', col.names = NULL)
+
+```
+
+**Part G:** Repeat (d) using KNN with K = 1
+
+KNN did not perform well with k = 1. The confusion matrix shows that there were many false positves and false negatives in this model. With k = 1, I can assume there is extreme overfitting to the training set causing mediocre performance on the test set. I would expect better results adjusting k.
+
+
+```{r, echo = FALSE}
+set.seed(123)
+
+# create train and test set for KNN
+weeklyTrainKNN <- as.matrix(weeklyTrain$Lag2)
+weeklyTestKNN <- as.matrix(weeklyTest$Lag2)
+weeklyDirection <- as.factor(weeklyTrain$Direction)
+
+# make predictions with k=1
+weeklyKNNPred <- knn(weeklyTrainKNN, weeklyTestKNN, weeklyDirection, k = 1)
+
+# output results
+#summary(weeklyKNNPred)
+```
+
+```{r, echo = FALSE}
+# confusion matrix for knn
+confMatrKNN <- table(weeklyTest$Direction, weeklyKNNPred)
+
+# calc accuracy for knn
+KNNAccuracy <- (confMatrKNN[1,1] + confMatrKNN[2,2])/sum(nrow(weeklyTestKNN))
+
+
+```
+
+```{r, echo = FALSE}
+
+# output the confusion matrix
+kable(confMatrKNN, caption = 'KNN = 1 Confusion Matrix')
+
+```
+
+```{r, echo = FALSE}
+kable(KNNAccuracy, caption = 'KNN = 1 Accuracy', col.names = NULL)
+
+```
+
+
+
+**Part H.** Which of these methods appears to provide the best results on this data?
+
+To satisfy my curiosity, I brought back GLM model from prior assignment to see how it compares with LDA, QDA, and KNN. Both LDA and GLM had accuracy of .625 and identical confusion matrices. I am not surprised that KNN performed the worst but I am tempted to see how much better it can perform adjusting k.
+
+
+```{r, echo = FALSE}
+
+# split train and test up by year as instructed
+weeklyTrain <- subset(Weekly, Year < 2009)
+weeklyTest <- subset(Weekly, Year >= 2009)
+
+# create model with lag2 as only predictor
+weeklyGLM2 <- glm(formula = Direction ~ Lag2, data = weeklyTrain, family = binomial)
+
+# give summary
+#summary(weeklyGLM2)
+```
+
+
+```{r, echo = FALSE}
+
+# make predictions and classify as up/down
+testResp <- predict(weeklyGLM2, weeklyTest, type = 'response')
+testPred <- as.factor(ifelse(testResp > 0.5, 'Up','Down'))
+
+# combine column to main df
+weeklyTestDf <- cbind.data.frame(weeklyTest, testPred)
+
+#head(weeklyTestDf)
+
+```
+
+```{r, echo = FALSE}
+# build confusion matrix for model
+GLM2ConfMatr <- table(weeklyTestDf$Direction, weeklyTestDf$testPred)
+# rename confusion matrix
+names(dimnames(GLM2ConfMatr)) <- c('Actual', 'Predicted')
+
+kable(GLM2ConfMatr)
+```
+
+```{r, echo = FALSE}
+# calculate accuracy from confusion matrix
+GLM2Acc <- (GLM2ConfMatr[1,1] + GLM2ConfMatr[2,2])/sum(nrow(weeklyTestDf))
+
+kable(GLM2Acc, caption = 'GLM Accuracy', col.names = NULL)
+```
+
+
+
+```{r, echo = FALSE}
+# summary of glm model using function
+GLMSummary <- classificationSummary(0.5, testResp, weeklyTestDf$Direction)
+
+# output using kable
+kable(GLMSummary, caption = 'GLM Summary', col.names = c('Misclassification Rate','Sensitivity','Specificity'))
+```
+
+**Part I:** Experiment with different combinations of predictors including possible transformation and interactions, for each of the methods. Report the variables, method, and associated confusion matrix that appears to provide the best results on the held out data. Note that you should also experiment with values for K in the KNN classifier. 
+
+
+## K-Nearest Neighbors - k = 3, 10, 15
+
+```{r, echo = FALSE}
+# make predictions with k=1
+weeklyKNNPred2 <- knn(weeklyTrainKNN, weeklyTestKNN, weeklyDirection, k = 3)
+
+# output results
+#summary(weeklyKNNPred)
+```
+
+```{r, echo = FALSE}
+# confusion matrix for knn
+confMatrKNN2 <- table(weeklyTest$Direction, weeklyKNNPred2)
+
+# calc accuracy for knn
+KNNAccuracy2 <- (confMatrKNN2[1,1] + confMatrKNN2[2,2])/sum(nrow(weeklyTestKNN))
+
+
+```
+
+```{r, echo = FALSE}
+
+# output the confusion matrix
+kable(confMatrKNN2, caption = 'KNN = 3 Confusion Matrix')
+
+```
+
+```{r, echo = FALSE}
+# output summary at k = 3
+kable(KNNAccuracy2, caption = 'KNN = 3 Accuracy', col.names = NULL)
+
+```
+
+
+```{r, echo = FALSE}
+
+
+# make predictions with k=1
+weeklyKNNPred3 <- knn(weeklyTrainKNN, weeklyTestKNN, weeklyDirection, k = 10)
+
+# output results
+#summary(weeklyKNNPred)
+```
+
+```{r, echo = FALSE}
+# confusion matrix for knn
+confMatrKNN3 <- table(weeklyTest$Direction, weeklyKNNPred3)
+
+# calc accuracy for knn
+KNNAccuracy3 <- (confMatrKNN3[1,1] + confMatrKNN3[2,2])/sum(nrow(weeklyTestKNN))
+
+
+```
+
+```{r, echo = FALSE}
+#confMatrKNN3
+# output the confusion matrix
+#kable(confMatrKNN3, caption = 'KNN = 10 Confusion Matrix')
+
+```
+
+```{r, echo = FALSE}
+#KNNAccuracy3
+# summary with k = 10
+#kable(KNNAccuracy3, caption = 'KNN = 10 Accuracy', col.names = NULL)
+
+```
+
+```{r, echo = FALSE}
+# prediction with k = 15
+weeklyKNNPred4 <- knn(weeklyTrainKNN, weeklyTestKNN, weeklyDirection, k = 15)
+
+```
+
+```{r, echo = FALSE}
+# confusion matrix for knn
+confMatrKNN4 <- table(weeklyTest$Direction, weeklyKNNPred4)
+
+# calc accuracy for knn
+KNNAccuracy4 <- (confMatrKNN4[1,1] + confMatrKNN4[2,2])/sum(nrow(weeklyTestKNN))
+
+
+```
+
+```{r, echo = FALSE}
+
+#confMatrKNN4
+# output the confusion matrix
+#kable(confMatrKNN4, caption = 'KNN = 15 Confusion Matrix')
+
+```
+
+While k = 15 did give nearly ten percent increase in performance, I was expecting slightly better performance. Appears that K Nearest Neighbors is not a good modeling method when it comes to analyzing the stock market.
+
+
+```{r, echo = FALSE}
+# summary with k = 10
+KNNAccComparison <- as.data.frame(cbind(KNNAccuracy2, KNNAccuracy3,KNNAccuracy4))
+#kable(KNNAccuracy4, caption = 'KNN = 15 Accuracy', col.names = NULL)
+kable(KNNAccComparison, caption= 'KNN Accuracy Comparison', col.names = c('k = 3','k = 10', 'k = 15'))
+```
+
+
+## GLM, QDA, LDA Interaction Comparison
+
+GLM, QDA, and LDA are fairly similar regarding accuracy. GLM and LDA seem a little more consistent from the few times that I have ran the model. QDA seems to give more false positives on a regular basis.
+
+```{r, echo = FALSE}
+# GLM polynomial
+weeklyGLMPoly <- glm(formula = Direction ~ poly(Lag2, 2), data = weeklyTrain, family = binomial)
+
+# make prediction and make binary
+GLMPolyProb <- predict(weeklyGLMPoly, weeklyTestDf, type = 'response')
+GLMPolyPred <- as.factor(ifelse(GLMPolyProb > 0.5, 'Up','Down'))
+GLMPolyConfMatrix<- table(weeklyTestDf$Direction, GLMPolyPred)
+
+GLMPolyAcc <- (GLMPolyConfMatrix[1,1] + GLMPolyConfMatrix[2,2])/sum(nrow(weeklyTestDf))
+#kable(GLMPolyAcc, caption = 'GLM Polynomial Accuracy', col.names = NULL)
+```
+
+```{r, echo = FALSE}
+# linear discriminant analysis
+weeklyLDAPoly <- lda(formula = Direction ~ poly(Lag2, 2), data = weeklyTrain, family = binomial)
+
+# make prediction
+LDAPolyProb <- predict(weeklyLDAPoly, weeklyTestDf, type = 'response')
+
+# create confusion matrix
+LDAPolyConfMatrix <- table(weeklyTestDf$Direction, LDAPolyProb$class)
+# calc accuracy
+LDAPolyAcc <- (LDAPolyConfMatrix[1,1] + LDAPolyConfMatrix[2,2])/sum(nrow(weeklyTestDf))
+
+#kable(LDAPolyAcc, caption = 'LDA Polynomial Accuracy', col.names = NULL)
+
+```
+
+
+```{r, echo = FALSE}
+# build quantile discriminant analysis model
+weeklyQDAPoly <- qda(formula = Direction ~ poly(Lag2, 2), data = weeklyTrain, family = binomial)
+# make prediction for QDA
+weeklyQDAProb <- predict(weeklyQDAPoly, weeklyTestDf, type = 'response')
+# build confusion matrix
+QDAPolyConfMatrix <- table(weeklyTestDf$Direction, weeklyQDAProb$class)
+# calc accuracy
+QDAPolyAcc <- (QDAPolyConfMatrix[1,1] + QDAPolyConfMatrix[2,2])/sum(nrow(weeklyTestDf))
+
+#QDAPolyAcc
+
+# cobine results to one dataframe
+WeeklyModelComparison <- cbind.data.frame(GLMPolyAcc, LDAPolyAcc, QDAPolyAcc)
+kable(WeeklyModelComparison, caption = 'Polynomial Model Accuracy Comparison', col.names = c('GLM','LDA','QDA'))
+```
+
+
+```{r, echo = FALSE}
+# output results using kable
+kable(GLMPolyConfMatrix, caption = 'Polynomial LDA Confusion Matrix')
+
+```
+
+
+```{r, echo = FALSE}
+kable(QDAPolyConfMatrix, caption = 'Polynomial QDA Confusion Matrix')
+
+```
+
+**Question 4.7.11, pg 172:** In this problem, you will develop a model to predict whether a given car gets high or low gas mileage based on the Auto data set.
+
+**Part D:** Perform LDA on the training data in order to predict mpg01 using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
+
+LDA performed pretty well with only about a nine percent error rate on the test set. Similar to the prior models in the last homework, the Auto dataset has data that is easily classified and can make reasonable predictions.
+
+```{r, echo = FALSE}
+
+# load dataset
+data('Auto', package = 'ISLR')
+
+```
+
+```{r, echo = FALSE}
+
+# add column based on median of mpg
+Auto$mpg01 <- as.factor(ifelse(Auto$mpg > median(Auto$mpg), 1, 0))
+
+#head(Auto)
+```
+
+```{r, echo = FALSE}
+
+# create a sample size of 75% of the sample
+sampleRows <- (0.75 * nrow(Auto))
+# set seed for reproducibility
+set.seed(123)
+trainIndex <- sample(seq_len(nrow(Auto)), size = sampleRows)
+# split into train and test
+train <- Auto[trainIndex,]
+test <- Auto[-trainIndex,]
+
+```
+
+```{r, echo = FALSE}
+# linear discriminant analysis on auto dataset
+autoLDA <- lda(formula = mpg01 ~ cylinders + weight + displacement + horsepower + year, data = train)
+
+# predictions on test set
+autoLDAPred <- predict(autoLDA, test)
+
+# build confusion matrix and calc accurcay/error
+autoLDAConfMatrix <- table(test$mpg01, autoLDAPred$class)
+autoLDAAcc <- (autoLDAConfMatrix[1,1] + autoLDAConfMatrix[2,2])/sum(nrow(test))
+autoLDAError <- 1 - autoLDAAcc
+kable(autoLDAError, caption = 'LDA Error Rate', col.names = NULL)
+
+```
+
+
+
+
+
+**Part E:** Perform QDA on the training data in order to predict mpg01 using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
+
+```{r, echo = FALSE}
+# repeat process from LDA
+autoQDA <- qda(formula = mpg01 ~ cylinders + weight + displacement + horsepower + year, data = train)
+
+autoQDAPred <- predict(autoQDA, test)
+
+autoQDAConfMatrix <- table(test$mpg01, autoQDAPred$class)
+autoQDAAcc <- (autoQDAConfMatrix[1,1] + autoQDAConfMatrix[2,2])/sum(nrow(test))
+autoQDAError <- 1 - autoLDAAcc
+kable(autoQDAError, caption = 'QDA Error Rate', col.names = NULL)
+```
+
+
+
+## KNN Model Tuning
+
+
+**Part G:** Perform KNN on the training data, with several values of K, in order to predict mpg01. Use only the variables that seemed most associated with mpg01 in (b). What test errors do you obtain? Which value of K seems to perform the best on this data set?
+
+```{r, echo = FALSE}
+# split train and test set
+set.seed(123)
+autoKNNTrain <- train[,c(2,3,4,5,7)]
+autoKNNTest <- test[,c(2,3,4,5,7)]
+autoMPG <- as.factor(train$mpg01)
+```
+
+```{r, echo = FALSE}
+# build model with k = 1
+autoKNN1 <- knn(autoKNNTrain, autoKNNTest, autoMPG, k=1)
+KNN1ConfMatr <- table(test$mpg01, autoKNN1)
+k1Acc <- (KNN1ConfMatr[1,1] + KNN1ConfMatr[2,2])/sum(nrow(autoKNNTest))
+
+```
+
+```{r, echo = FALSE}
+# reapeat with k = 5
+autoKNN2 <- knn(autoKNNTrain, autoKNNTest, autoMPG, k=5)
+KNN2ConfMatr <- table(test$mpg01, autoKNN2)
+k2Acc <- (KNN2ConfMatr[1,1] + KNN2ConfMatr[2,2])/sum(nrow(autoKNNTest))
+
+#k2Acc
+
+```
+
+```{r, echo = FALSE}
+# repeat with k = 10
+autoKNN3 <- knn(autoKNNTrain, autoKNNTest, autoMPG, k=10)
+KNN3ConfMatr <- table(test$mpg01, autoKNN3)
+k3Acc <- (KNN3ConfMatr[1,1] + KNN3ConfMatr[2,2])/sum(nrow(autoKNNTest))
+
+#k3Acc
+
+```
+
+```{r, echo = FALSE}
+# repeat with k = 30
+autoKNN4 <- knn(autoKNNTrain, autoKNNTest, autoMPG, k=30)
+KNN4ConfMatr <- table(test$mpg01, autoKNN4)
+k4Acc <- (KNN4ConfMatr[1,1] + KNN4ConfMatr[2,2])/sum(nrow(autoKNNTest))
+
+#k4Acc
+
+```
+
+Surprisingly, KNN again performs worse than LDA and QDA. Going all the way up to k =50, the model does not see much improvement.
+
+```{r, echo = FALSE}
+# repeat with k = 50
+autoKNN5 <- knn(autoKNNTrain, autoKNNTest, autoMPG, k=50)
+KNN5ConfMatr <- table(test$mpg01, autoKNN5)
+k5Acc <- (KNN5ConfMatr[1,1] + KNN5ConfMatr[2,2])/sum(nrow(autoKNNTest))
+
+# combine in dataframe and to compare accuracy
+kable(as.data.frame(cbind(k1Acc, k2Acc, k3Acc, k4Acc, k5Acc)), col.names = c('k=1','k=5','k=10','k=30','k=50'),
+      caption = 'Accuracy Comparison')
+
+```
+
+\pagebreak
+
+## Classification Methods Summary
+
+**Question 5:** Read the paper "Statistical Classification Methods in Consumer Credit Scoring: A Review" posted on D2L. Write a one page (no more, no less) summary.
+
+I believe that consumer credit scoring is a very suitable application for statistical modeling. With many factors easily available to analyze for an applicant/consumer it is possible to make many assumptions and combine that with the available data. Immediately, with over 100,000 applicants and 100 variables, the paper shows how complex the models can become. Not only are there a large amount of possible variables, but the proportion of credit offerings goes from a very low 17% to a high 84%. This made me think about the variability in industries that we are considering and maybe the timeframe regarding the economical situations at the given time of applicants being accepted or declined.
+Not only is the wide range of industries making the analysis complicated, but not all of these independent variables are necessarily relevant to all applicants and I’m sure that much of the data is missing due to applicants not knowing the answer or their unwillingness to give the information. This brings another question on how to handle those who are unwilling to provide certain information and whether that will impact how much influence the variable missing has on the end result. This is a situation where it is not just the model that is needed, but human judgement and knowledge of the industry related to the model. On that topic, the selection of variables through human judgement and statistical models such as stepwise procedures is also discussed. It would be interesting to see how many independent variables get used in these models on average.
+The first modeling method that comes to mind right away since this is a fairly simple accept/reject outcome is logistic regression. For simplicity, K Nearest Neighbors always runs through my mind but I feel like decision trees would be the best fit when considering it from a business perspective. Recursive partitioning would be helpful and easily interpretable for those who are less familiar with some of the more complicated modeling methods. With technological advances and more efficient modeling methods, neural networks are definitely an option that may provide a slight improvement in accuracy, but I do not see that as a big enough benefit to give away a modeling method that is somewhat easily interpretable for all others.
+There are many other ways to apply these models for less critical decisions such as marketing and non-lifechanging impacts. Before the conclusion, they brought up the possibility of cluster analysis for market segmentation and that was one method that definitely came to my mind when considering how it would be helpful to get a higher level view of the overall demographics of applicants. 
+
+
+## Wine Quality Dataset
+
+**Question 6:** Explore this website (https://archive.ics.uci.edu/ml/datasets.html) that contains open data sets that are used in machine learning. Find one data set with a classification problem and write a description of the dataset and problem. I don't expect you to do the analysis for this homework, but feel free to if you want! 
+
+I have selected the 'Wine Quality' dataset from the website. I have meant to work with this dataset for a while after frequently seeing it on Kaggle.com. I think this could be analyzed in a few different ways. While I believe the most interesting part would be to do regression on the quality score of the wine, it may be interesting to see if it is as easy as I suspect to classify the different types of wine.
+
+With two datasets for different types of wine, I should be able to easily combine them and compare the independent variables for exporatory data analysis and the challenge of classification.
+
+```{r, echo = FALSE}
+# read datasets and show heads of datasets
+library(readr)
+wineQualityRed <- read.csv("winequality-red.csv", sep = ';')
+wineQualityWhite <- read.csv('winequality-white.csv', sep = ';')
+
+head(as.data.frame(wineQualityRed))
+head(as.data.frame(wineQualityWhite))
+```
+
