@@ -1,0 +1,280 @@
+---
+title: "Homework 1"
+author: "Andrew Boschee"
+output: pdf_document
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F, warning = F, cache = F)
+```
+
+```{r, echo =FALSE}
+library(ggplot2)
+library(knitr)
+library(gridExtra)
+library(GGally)
+
+```
+	
+*No collaborators*	
+	
+\textbf{1. Question 2.4.2 pg 52 -} Explain whether each scenario is a classification or regression problem, and indicate whether we are most interested in inference or prediction. Finally, provide n and p.
+
+\textbf{a.} We collect a set of data on the top 500 firms in the US. For each firm we record profit, number of employees, industry and the CEO salary. We are interested in understanding which factors affect CEO salary.
+
+\textbf{Answer - }The CEO's salary is a continuous variable and will be considered a regression and inference problem. n = 500, p = 3 (profit, # employees, industry)
+
+\textbf{b.} We are considering launching a new product and wish to know whether it will be a success or a failure. We collect data on 20 similar products that were previously launched. For each product we have recorded whether it was a success or failure, price charged for the product, marketing budget, competition price, and ten other variables.
+
+\textbf{Answer - }The outcome of success or failure is a classification and prediction. n = 20 (products) and p = 13 (price, budget, competitor price, and other ten variables). 
+
+\textbf{c.} We are interested in predicting the % change in the USD/Euro exchange rate in relation to the weekly changes in the world stock markets. Hence we collect weekly data for all of 2012. For each week we record the % chang in the USD/Euro, the % change in the US market, the % change in the British market, and the % change in the German market.
+
+\textbf{Answer - }The rate change will be a regression problem and we are making a prediction of those rates. n = 52 (weeks in year) and p = 3 (% change in each market besides USD/Euro)
+
+
+
+\textbf{2. Question 2.4.4 pg 53} - You will now think of some real-life applications for statistical learning.
+
+\textbf{a.} Describe three real-life applications in which classification might be useful. Describe the response as well as the predictors. Is the goal of each application inference or prediction? Explain your answer.
+
+\textbf{Fraud detection} (Inference, Classification) - Response: account is classified as fraudulent/non-fraudulent. Predictors: Transaction frequency(dates), transaction amounts, recipient account activity.
+
+\textbf{Election Outcome} (Prediction, Classification) - Response: Elected or not elected. Predictors: approval ratings, survey results, view of political subject, experience.
+
+\textbf{Health Risk} (Prediction, Classification) - Response: Whether at risk for event. Predictors: Family history, genetic links, personal habits(eating, drug use, exercise frequency),pre-existing conditions
+
+These are three popular applications that come to my mind quite often. Each of these events can have classification in multiple ways. I left the health risk vague since there are so many possible applications to see whether someone is likely to have a condition. Politics are constantly making predictions about who is most likely to win an election or measuring their approval. Finally, working in finance industry, I know that fraud detection is a common use of machine learning in this area to identify unusual use of money and transactions.
+
+
+\textbf{b.} Describe three real-life applications in which regression might be useful. Describe the response, as well as the predictors. Is the goal of each application inference or prediction? Explain your answer.
+
+\textbf{Housing Prices} (Regression, Prediction) - Response: Price of house. Predictors: Location, square footage, number of bedrooms, year built, number of bathrooms, lot size.
+
+\textbf{Fantasy Football} (Regression, Prediction) - Response: Projected points. Predictors: Catches, Yards, Touchdowns
+
+\textbf{Company Turnover} (Regression, Inference) - Response: Retention rate of customers. Predictors: Time with company, amounts paid, subscription type, number of orders.
+
+Again, from common interactions in life, housing prices, fantasy football, and retention rates seem pretty easy for anyone to relate to. Was a little harder to view the inference aspect but a simple one that came to mind was to find what factors are most likely to contribute to the retention rate of customers and can be applied to basically any company. The other two topics are similar in determining how much each predictor factors into the response variable and giving expected output from that model.
+
+\textbf{c.} Describe three real-life applications in which cluster analysis might be useful.
+
+\textbf{Networking} - Having common interests and similarities can be seen in clusters. Social media platforms cluster users based on preferences and activity to form networks. Examples: Linkedin, Facebook, Dating Apps
+
+\textbf{Marketing} - Similar to social media, similarities can be found by segments of people on purchasing habits or personal interests. Ads can be targeted to specific demographics depending on websites visited, channels watched, and many other habits. Examples: Amazon, Ebay, Almost any website...
+
+\textbf{Epidemiology} - Spread of illnesses/diseases can be sorted geographically or by genetic characteristics. Analyzing the spreading of the flu this time of year. This is just one small example of health trends that can go all the way to a global scale to fight epidemics over time.
+
+
+\textbf{3. Question 2.4.6 pg 53}
+
+Describe the differences between a parametric and a non- parametric statistical learning approach. What are the advantages of a parametric approach to regression or classification ( as opposed to a non-parametric approach)? What are its disadvantages?
+
+A parametric model has finite number of parameters in comparison to a non-parametric model. This has pros and cons. While a non- parametric approach can be very accurate and precise to the training set, this is overfitting and will not work well when applied to non-training data. The non-parametric model will pick up much more 'noise' than the parametric model. Parametric models are much simpler in most cases than non-parametric models and will most likely be faster and easier to explain. Non-parametric models may require more data and take much longer to train and explain clearly to those unfamiliar with concepts.
+
+\textbf{4. Question 2.4.8 pg 54-55}
+
+This exercise realtes to the College data set, which can be found in the College.csv. It contains a number of variables for 77 different universities and colleges in the US.
+
+\textbf{a.} Use the read.csv() function to read the data into R. Call the loaded data college. Make sure that you have the directory set to the correct location for the data.
+
+```{r, echo =FALSE}
+
+# READ CSV 
+college <- read.csv('College.csv')
+```
+
+\textbf{b.} Look at the data using the fix() function. You should notice that the first column is just the name of each university. We don't really want R to treat this as data. However, it may be handy to have these names for later. 
+
+```{r, echo =FALSE}
+
+# OPTION TO EDIT FIELDS
+rownames(college) = college[,1]
+fix(college)
+
+college=college[,-1]
+fix(college)
+```
+
+\textbf{c(i)} Use the summary function to produce a numerical summary of the variables in the data set.
+
+```{r, echo =FALSE}
+# SHOW DATA SUMMARY
+summary(college)
+
+```
+
+\textbf{c(ii)} use the pairs() function to produce a scatterplot matrix fo the first ten columns or variables.
+
+```{r, echo =FALSE, fig.width = 10, fig.height=5}
+# scatterplot matrix of the first ten variables
+pairs(college[,1:10])
+
+```
+
+
+```{r, echo =FALSE, fig.width = 10, fig.height=5, warning=FALSE}
+
+#ggplot version of scatterplot using ggally
+ggpairs(college[,1:10], aes(alpha = 0.2)) +
+  theme(axis.text.x=element_text(angle=90, hjust =1))
+
+```
+
+c(iii) use the plot() function to produce side-by-side boxplots of Outstate versus Private
+
+```{r, echo =FALSE, fig.width = 10, fig.height=5}
+# boxplot of outstate vs private
+plot(college$Private, college$Outstate, xlab = 'Is Private School', ylab ='Tuition Cost', main = 'Out of State Tuition if Private or Public')
+
+```
+
+```{r, echo = FALSE, fig.width=10, fig.height = 5}
+# reproduce prior plot with geom_boxplot
+ggplot(college, aes(x=Private, y=Outstate))+
+  geom_boxplot()+
+  labs(x='Is Private School', y='Tuition Cost', title = 'Out of State Tuition if Private or Public')
+
+```
+
+We can see that out of state tuition can be comparable for non-private schools in some instances but the average cost is much higher and the IQR is much broader for private schools.
+
+\textbf{c(iv)} Create new qualitative variable, called Elite, by binning the Top10perc variable. We are going to divide universities into two groups based on whether or not the proportion of students coming from the top 10% of their high school classes exceeds 50%.
+
+```{r, echo =FALSE}
+# create elite column and append to college data.frame as factor
+elite = rep('No', nrow(college))
+elite[college$Top10perc>50]='Yes'
+elite = as.factor(elite)
+college = data.frame(college, elite)
+#summary(college)
+```
+
+Use the summary() function to see how many elite universities there are. Now use the plot() function to produce side-by-side boxplots of Outstate versus Elite.
+
+```{r, echo =FALSE, fig.width=10, fig.height = 5}
+# show summary
+summary(college)
+
+# boxplot of outstatae vs elite
+plot(college$elite, college$Outstate, xlab='Is Elite', ylab = 'Out of State Tuition Cost', main = 'Elite vs Non-Elite Tuition Out of State')
+```
+```{r, echo = FALSE, fig.width=10, fig.height = 5}
+# reproduce base r plot with geom_boxplot
+ggplot(college, aes(x=elite, y=Outstate))+
+  geom_boxplot()+
+  labs(x= 'Is Elite', y='Out of State Tuition', title = 'Elite vs Non-Elite Tuition Out of State')
+
+```
+
+\textbf{c(v)} Use the hist() function to produce some histograms with differing numbers of bins for a few of the quantitative variables.
+
+```{r, echo =FALSE, fig.width = 10, fig.height=5}
+# group plots with three rows and two columns
+par(mfrow = c(3,2))
+
+# histograms for three variables with varying bins
+hist(college$Apps, breaks = 10, main = 'Number of Applications Received (10 bins)', xlab='Apps')
+hist(college$Apps, breaks = 30, main = 'Number of Applications Received (30 bins)', xlab = 'Apps')
+
+hist(college$Grad.Rate, breaks = 5, main = 'Graduation Rate (5 bins)', xlab = 'Graduation Rate')
+hist(college$Grad.Rate, breaks = 20, main = 'Graduation Rate (20 bins)', xlab = 'Graduation Rate')
+
+hist(college$Room.Board, breaks = 5, main = 'Room and Board (5 bins)', xlab = 'Room and Board Cost')
+hist(college$Room.Board, breaks = 20, main = 'Room and Board (20 bins)', xlab = 'Room and Board Cost')
+```
+
+
+```{r, echo =FALSE, fig.width = 10, fig.height=5}
+
+# replicate base r plots with ggplot
+grid.arrange(
+ggplot(college, aes(x=Apps)) +
+  geom_histogram(bins = 10)+
+  labs(title = 'Number of Applications Recieved (10 bins)'),
+ggplot(college, aes(x=Apps)) +
+  geom_histogram(bins = 30)+
+  labs(title = 'Number of Applications Recieved (30 bins)'),
+
+ggplot(college, aes(x=Grad.Rate)) +
+  geom_histogram(bins = 5)+
+  labs(title = 'Graduation Rate (5 bins)'),
+ggplot(college, aes(x=Grad.Rate)) +
+  geom_histogram(bins = 20)+
+  labs(title = 'Graduation Rate (20 bins)'),
+
+ggplot(college, aes(x=Room.Board)) +
+  geom_histogram(bins = 5)+
+  labs(title = 'Room and Board (5 bins)'),
+ggplot(college, aes(x=Room.Board)) +
+  geom_histogram(bins = 20)+
+  labs(title = 'Room and Board (20 bins)'),
+nrow = 3)
+```
+
+A couple quick take-aways - Graduation rate is above 100%. Second, distributions are righ-skewed in and is not hard to believe with the extreme costs of college and education. The above three variables have outliers and I'm sure that other variables do as well.
+
+## Colleges with 100% or Greater Graduation Rate Predictor
+
+\textbf{c(vi)} Continue exploring the data, and provide a brief summary of what you discover
+
+The first thing that stands out to me is the graduation rate plots. Clearly there is some inaccurate data or somebody misinterpreted the data being requested. Aside from exceeding 100 percent graduation rate, having 100 percent in general seems very unlikely. I believe that is worth exploring in this situation.
+
+We can see that Cazenovia College is the school that had the excess of 100% from the summary of grad rates below. 
+
+Second, there are ten other schools with a 100 percent graduation rate. It brings to question if there was a formula that was just miscalcuated or personal error in gathering this data. An easy to notice fact is that all but one of the schools (Missouri Southern State College) in the group of ten are classified as private. 
+
+```{r, echo = FALSE}
+# summary of grad rate column
+summary(college$Grad.Rate)
+
+# filter down to grad rates of 100 or greater
+highGradRate <- subset(college, Grad.Rate >= 100)
+
+# filter to the school exceeding 100 percent grad rate
+excessGradRate <- subset(college, Grad.Rate >100)
+
+# use kable to output selected columns to fit pdf output
+kable(highGradRate[,c(1:4)], caption = 'Colleges with Graduation Rate = 100%')
+kable(excessGradRate[,c(1:4)], caption = 'College with Graduation Rate = 118%')
+```
+
+
+
+
+
+
+
+```{r, echo =FALSE, fig.width = 10, fig.height=5}
+
+# plots to evaluate selected schools
+grid.arrange(
+ggplot(highGradRate, aes(x=Apps)) +
+  geom_histogram(bins = 10)+
+  labs(title = 'Number of Applications Recieved (10 bins)'),
+ggplot(college, aes(x=Apps)) +
+  geom_histogram(bins = 30)+
+  labs(title = 'Number of Applications Recieved (30 bins)'),
+
+ggplot(highGradRate, aes(x=Room.Board)) +
+  geom_histogram(bins = 5)+
+  labs(title = 'Room and Board (5 bins)'),
+ggplot(highGradRate, aes(x=Room.Board)) +
+  geom_histogram(bins = 20)+
+  labs(title = 'Room and Board (20 bins)'),
+nrow = 2)
+```
+
+
+Using Linear Regression, I wanted to see what variables stood out as signficant when it comes to graduation rate. Below we can see that there are many that come into play. The ones that I believe should be focused on the most are Private status, Apps, p.Undergrad, and Outstate. I am a little surprised that Enroll and Accept predictors aren't significant regarding graduation rate.
+
+```{r, echo = FALSE, fig.width = 10, fig.height = 5}
+#head(college)
+
+#linear model for graduation rate using all predictors
+linMod1 <- lm(Grad.Rate ~ ., data = college)
+
+#output coefficients from summary 
+kable(summary(linMod1)$coefficients, caption= 'Linear Regression - Predictor Significance Comparison')
+
+```

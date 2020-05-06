@@ -1,0 +1,416 @@
+---
+title: "Homework 2"
+author: "Andrew Boschee"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = FALSE}
+
+library(ggplot2)
+library(knitr)
+library(gridExtra)
+library(ISLR)
+library(MASS)
+```
+
+*No Outside Resources*
+
+\textbf{1. Question 3.7.5 pg 121 -} Consider the fitted values that result from performing linear regression without an intercept. In this setting, the ith fitted value takes the form 
+\[\hat y_i = x_i\beta\]
+where \[\hat \beta = \sum\limits(x_iy_i) / (\sum\limits(x^2_i)\]
+Show that we can write \[\hat y_i = \sum(a_(i')y_(i')\]
+what is?  \[a_(i')\]  
+
+
+ \[a_i = (x_ix_j) / \sum_{i'= 1}^n x_i'^2)\]
+
+
+## Carseats Multiple Regression
+
+\textbf{2. Question 3.7.10 pg 123 -} This problem should be answered using the Carseats data set.
+
+\textbf{a.} Fit a multiple regression model to predict Sales using Price, Urban and US.
+
+```{r,include=FALSE,warning=F,message=F}
+# load carseats data
+data('Carseats', package = 'ISLR')
+
+#head(Carseats)
+
+# build linear model with all variables
+carseatModel <- lm(Sales ~ Price + Urban + US, data = Carseats)
+
+# pint equation of model
+print(summary(carseatModel)$call)
+```
+
+\textbf{b.} Provide an interpretation of each coefficient in the model. Be careful - some of the variables in the model are qualitative.
+
+\textbf{Results: }For negative correlation with price. For every unit increase of price there is a decrease of .054 in sales units. Regarding Urban variable being binary, if it is urban, there is -.0219 unit decrease in sales units. Similar to the Urban variable, using binary (0/1) for X there will be in increase of 1.2 units of sales.
+
+```{r, echo = FALSE}
+# get coefficients and turn to dataframe for kable output
+carsum <- summary(carseatModel)$coefficients
+carsum2 <- summary(carseatModel)$coefficients[,4]
+carsum <- as.data.frame(carsum)
+carsum2 <- as.data.frame(carsum2)
+
+kable(carsum[c(2:4),])
+```
+
+\textbf{c.} Write out the model in equation form, being careful to handle the qualitative variables properly.
+
+\[Sales = 13.043469 + (-0.054459)Price + (-0.021916)Urban + (1.200573)US + \epsilon\]
+
+\pagebreak
+
+\textbf{d.} For which of the predictors can you reject the null hypothesis? \[H_0 : \beta_j = 0\]
+
+\textbf{Results: }From output below we can reject the null hypothesis for the Price and Us variables at a signficance level of .05
+
+```{r, echo = FALSE}
+# output summary with proper column names and caption
+kable(carsum2, col.names = c('P-Value'), caption = 'P-Values of Predictors to Reject Null Hypothesis')
+
+```
+
+## Multiple Regression with Signficant Variables
+
+\textbf{e.} On the basis of your response to the previous question, fit a smaller model that only uses the predictors for which there is evidence of association with the outcome.
+
+\textbf{Results: }A summary of the model is given showing the two significant predictors.
+
+```{r, echo = FALSE}
+# build model without non-significant variable
+carseatModelTwo <- lm(Sales ~ Price + US, data = Carseats)
+
+#print summary
+summary(carseatModelTwo)
+
+```
+
+\pagebreak
+
+## R-Squared Model Comparison
+
+\textbf{f.} How well do the models in (a) and (e) fit the data?
+
+\textbf{Results: }The two significant variables make up roughly 24% of the variability of the dependent variable(Sales). The output below compares the r-squared output when using both 2 predictors and 3 predictors. There is very little difference when including the Urban dependent variable and reinforces our assumption that it is not significant regarding sales.
+
+```{r, echo = FALSE}
+# pull r-squared values from summary output for each model
+r2Model1 <- summary(carseatModel)$r.squared
+r2Model2 <- summary(carseatModelTwo)$r.squared
+
+# use cbind to put the output together
+r2Comparison <- as.data.frame(cbind(r2Model1, r2Model2))
+
+# format oupt put with column names and caption
+kable(r2Comparison, col.names = c('Model 1 (3 Predictors)','Model 2 (2 Predictors)'),
+      caption = "Comparison of R-Squared Between Models")
+```
+
+## Confidence Intervals
+
+\textbf{g.} Using the model from (e), obtain 95% confidence intervals for the coefficient(s).
+
+\textbf{Results: }Comparing the outcome of the confidence intervals, we can immediately see a much broader interval for the US variable than the Price variable.
+
+```{r, echo = FALSE}
+# output confidence interval for second model at 95%
+kable(confint(carseatModelTwo, level = 0.95))
+```
+
+
+\textbf{h.} Is there evidence of outliers or high leverarge observations in the model from (e)?
+
+\textbf{Results: }There are not many outliers when looking at the residuals and QQ-Plot. The only outliers that stand out come from the Residuals vs Leverage plot on the high end of x-axis(Leverage)
+
+```{r, echo = FALSE, fig.width = 10, fig.height=5}
+# plot residuals from second model
+par(mfrow = c(2,2))
+plot(carseatModelTwo)
+
+```
+
+```{r, echo = FALSE, fig.width = 10, fig.height=5}
+# ggplot version of prior plot
+grid.arrange(
+ggplot(carseatModelTwo, aes(.fitted, .resid))+
+  geom_point()+
+  geom_hline(yintercept=0, col = 'red')+
+  labs(title='Residuals vs Fitted'),
+ggplot(carseatModelTwo, aes(sample = rstandard(carseatModelTwo))) +
+  geom_qq() +
+  stat_qq_line(col = 'red') +
+  labs(x = 'Theoretical Quantiles', y = 'Standardized Residuals', title = 'Normal Q-Q'),
+ggplot(carseatModelTwo, aes(.fitted, .stdresid)) +
+  geom_point() +
+  labs(x = 'Fitted', y = 'Standardized Residuals', title = 'Scale Location') +
+  geom_hline(yintercept = 0, col = 'red'),
+ggplot(carseatModelTwo, aes(.hat, .stdresid)) +
+  geom_point() +
+  stat_smooth(method = 'loess', col = 'red', se=FALSE) +
+  labs(x = 'Leverage', y = 'Standardized Residuals', title = 'Residuals vs Leverage'),
+nrow=2)
+
+```
+
+
+
+## Boston - Simple Linear Regression
+
+\textbf{3. Question 3.7.15 pg 126 -} This problem involves the *Boston* data set, which we saw in the lab for this chapter. We will now try to predict per capita crime rate using the other variables in the data set. In other words, per capita crime rate is the response, and the other variables are the predictors.
+
+\textbf{a.} For each predictor, fit a simple linear regression model to predict the response. Describe your results. In which of the models is there a statistcally significant association between the predictor and the response? Create some plots to back up your assertions.
+
+```{r, echo = FALSE}
+# load dataset
+data(Boston, package = 'MASS')
+
+#head(Boston)
+
+# build linear model for all variables individually
+bostonZnLm <- lm(crim ~ zn, data = Boston)
+bostonIndusLm <- lm(crim ~ indus, data = Boston)
+bostonChasLm <- lm(crim ~ chas, data = Boston)
+bostonNoxLm <- lm(crim ~ nox, data = Boston)
+bostonRmLm <- lm(crim ~ rm, data = Boston)
+bostonAgeLm <- lm(crim ~ age, data = Boston)
+bostonDisLm <- lm(crim ~ dis, data = Boston)
+bostonRadLm <- lm(crim ~ rad, data = Boston)
+bostonTaxLm <- lm(crim ~ tax, data = Boston)
+bostonPtrationLm <- lm(crim ~ ptratio, data = Boston)
+bostonBlackLm <- lm(crim ~ black, data = Boston)
+bostonLstatLm <- lm(crim ~ lstat, data = Boston)
+bostonMedvLm <- lm(crim ~ medv, data = Boston)
+
+
+```
+
+
+```{r, echo = FALSE}
+
+# pull p value from coefficient section of summary for each variable
+coefZn <- summary(bostonZnLm)$coefficients[2,4]
+coefIndus <- summary(bostonIndusLm)$coefficients[2,4]
+coefChas <- summary(bostonChasLm)$coefficients[2,4]
+coefNox <- summary(bostonNoxLm)$coefficients[2,4]
+coefRm <- summary(bostonRmLm)$coefficients[2,4]
+coefAge <- summary(bostonAgeLm)$coefficients[2,4]
+coefDis <- summary(bostonDisLm)$coefficients[2,4]
+coefRad <- summary(bostonRadLm)$coefficients[2,4]
+coefTax <- summary(bostonTaxLm)$coefficients[2,4]
+coefPtration <- summary(bostonPtrationLm)$coefficients[2,4]
+coefBlack <- summary(bostonBlackLm)$coefficients[2,4]
+coefStat <- summary(bostonLstatLm)$coefficients[2,4]
+coefMedv <- summary(bostonMedvLm)$coefficients[2,4]
+
+# store variable names
+BostonCoefficient <- c('Zone','Industrial','CharlesRiver','Nitrogen Concentration','Rooms','Age(Before 1940)','Distance','Highway Access','Tax Rate','Pupil-Teacher Ratio','BlacksProp','LowerStatus','MedianValue')
+
+# store values of coefficients
+values <- c(coefZn, coefIndus, coefChas, coefNox, coefRm, coefAge, coefDis, coefRad, coefTax, coefPtration, coefBlack,
+            coefStat, coefMedv)
+
+# make dataframe of two vectors
+pValueDf <- as.data.frame(cbind(BostonCoefficient, values))
+
+# output with kable
+kable(pValueDf, col.names = c('Variable','P-Value'), caption = 'P-Value by Variable')
+```
+
+
+```{r, echo = FALSE, fig.width = 10, fig.height=5}
+# base R plots of variables that are easily interpretable
+par(mfrow = c(2,2))
+plot(crim ~ indus, data = Boston, xlab = "Business Acres/Town", ylab = "Crime", main = "Crime vs Industrial")
+plot(crim ~ age, data = Boston, xlab = "Prop of Dwellings pre '40", ylab = "Crime", main = "Crime vs Age")
+plot(crim ~ dis, data = Boston, xlab = "Distance to Employment", ylab = "Crime", main = "Crime vs Distance")
+plot(crim ~ tax, data = Boston, xlab = "Property Tax / 10k", ylab = "Crime", main = "Crime vs Tax")
+plot(crim ~ ptratio, data = Boston, xlab = "Pupil/Teacher Ratio", ylab = "Crime", main = "Crime vs PTRatio")
+plot(crim ~ black, data = Boston, xlab = "Black Proportion", ylab = "Crime", main = "Crime vs Black")
+plot(crim ~ lstat, data = Boston, xlab = "% Lower Status", ylab = "Crime", main = "Crime vs Lstat")
+plot(crim ~ medv, data = Boston, xlab = "Median Home Value", ylab = "Crime", main = "Crime vs Medv")
+```
+
+```{r, echo = FALSE, fig.width = 10, fig.height=5}
+# replicate of base r plots
+grid.arrange(
+ggplot(Boston, aes(x = indus, y = crim)) +
+  geom_point() +
+  labs(x = "Business Acres/Town", y = "Crime", title = "Crime vs Indus"),
+ggplot(Boston, aes(x = age, y = crim)) +
+  geom_point() +
+  labs(x = "Prop of Dwellings Pre '40", y = "Crime", title = "Crime vs Age"),
+ggplot(Boston, aes(x = dis, y = crim)) +
+  geom_point() +
+  labs(x = "Distance to Employment", y = "Crime", title = "Crime vs Dis"),
+ggplot(Boston, aes(x = tax, y = crim)) +
+  geom_point() +
+  labs(x = "Property Tax / 10k", y = "Crime", title = "Crime vs Tax"), nrow = 2)
+
+grid.arrange(
+ggplot(Boston, aes(x = ptratio, y = crim)) +
+  geom_point() +
+  labs(x = "Pupil/Teacher Ratio", y = "Crime", title = "Crime vs PTRatio"),
+ggplot(Boston, aes(x = black, y = crim)) +
+  geom_point() +
+  labs(x = "Black Proportion", y = "Crime", title = "Crime vs Black"),
+ggplot(Boston, aes(x = lstat, y = crim)) +
+  geom_point() +
+  labs(x = "% Lower Status", y = "Crime", title = "Crime vs Lstat"),
+ggplot(Boston, aes(x = medv, y = crim)) +
+  geom_point() +
+  labs(x = "Median Home Value", y = "Crime", title = "Crime vs Medv"), nrow = 2)
+
+```
+
+
+\textbf{Results: }I think there is a lot to take away from the plots above. I only included the plots that are fairly easy for interpretation without getting too deep. Many of the other interactions I believe are open to interpretation to a much greater extent with too many assumptions.
+
+One that I am more curious about is the Crime vs Pupil/Teacher Ratio. The first thing that comes to mine is that classes are often fairly similar in size with a somewhat standardized classroom setting and limitations on capacity. There is very heavy chunk around the ratio of 20:1. This doesn't come at much of a surprise since I am assuming that is a very common ratio. I think this would be an interesting area to dig deeper into. 
+
+The other topics that stand out probably have some correlation with each other such as median home value, lower status, and distance to employment. This may also have quite a bit of geographic factoring where the population of race, home value, and status come into play.
+
+
+## Multiple Regression
+
+\textbf{b.} Fit a multiple regression model to predict the response using all of the predictors. Describe your results. For which predictors can we reject the null hypothesis? \[H_0 : \beta_j = 0\]
+
+\textbf{Results: }From the table below using a threshold of .05 for alpha, we can reject the null hypothesis for five variables: zn, dis, rad, black, and medv.
+
+At first glance, I can agree with thir result. Was expecting the ptratio as well and possibly the lstat variable.
+
+```{r, echo = FALSE}
+
+# build linear model with all variables
+bostonModel1 <- lm(crim ~ ., data = Boston)
+
+# output p values
+kable(summary(bostonModel1)$coefficients[,4], col.names = c('P-Value'), caption = 'Multiple Regression P-Values')
+
+```
+
+```{r, echo = FALSE}
+# make vector/df of coefficients for simple regression
+simpleCoefDf <- as.data.frame(
+  c(bostonZnLm$coefficients[2], bostonIndusLm$coefficients[2],bostonChasLm$coefficients[2],bostonNoxLm$coefficients[2],bostonRmLm$coefficients[2],
+    bostonAgeLm$coefficients[2], bostonDisLm$coefficients[2], bostonRadLm$coefficients[2],bostonTaxLm$coefficients[2],bostonPtrationLm$coefficients[2],
+    bostonBlackLm$coefficients[2],bostonLstatLm$coefficients[2],bostonMedvLm$coefficients[2]))
+colnames(simpleCoefDf) <- 'Simple Regression'
+
+```
+
+## Coefficient Comparison
+
+\textbf{c.} How do your results from (a) compare to your results from (b)? Create a plot displaying the univariate regression coefficients from (a) on the x-axis and the multiple regression coefficients from (b) on the y-axis. That is, each predictor is displayed as a single point on the plot. Its coefficient in a simple linear regression model is shown on the x-axis and its coefficient estimate in the multiple linear regression model is shown on the y-axis.
+
+\textbf{Results: }This part is a little ugly in my opinion and the only thing that should be taken away is that when adding in multiple dependent variables, it can play a big role in the coefficients of each predictor. Clearly the nox variable's coefficient drastically changes when it is not the only predictor used in the model. Some variables even go from having a positive coefficient to a negative coefficient.
+
+\pagebreak
+
+```{r, echo = FALSE}
+# repeat previous step for multiple regression
+multRegressionCoef <- as.data.frame(bostonModel1$coefficients[2:14])
+
+# rename column
+colnames(multRegressionCoef) <- 'Multiple Regression'
+
+#multRegressionCoef
+```
+
+```{r, echo = FALSE}
+# combine dataframes
+coefComparison <- as.data.frame(cbind(multRegressionCoef, simpleCoefDf))
+
+# output comparison
+kable(coefComparison, caption = 'Coefficient Comparison')
+```
+
+```{r, echo = FALSE, fig.width = 10, fig.height=5}
+# simple vs multiple regression coefficients comparison
+plot(coefComparison$`Simple Regression`, coefComparison$`Multiple Regression`)
+
+```
+
+```{r, echo = FALSE, fig.width = 10, fig.height=5}
+# ggplot version of prior plot
+ggplot(coefComparison, aes(x=`Simple Regression`, y=`Multiple Regression`))+
+         geom_point()
+
+```
+
+## Non-Linear Associations
+
+\textbf{d. }Is there evidence of non-linear association between any of the predictors and the response? To answer this question, for each predictor *X*, fit a model of the form \[Y = \beta_0 + \beta_1X + \beta_2X^2 + \beta_3X^3 + \epsilon\]
+
+\textbf{Results: }We can see from the p-values that there is a change in whether a predictor is seen as significant when going from simple linear to cubic and quadratic. Again, some variables show no or very little change (chas, nox, dis, medv) while some that seen as significant before are no longer and vice versa.
+
+Noticeable Variables : age, lstat, zn
+
+Note: This is looking back seven decimal points from output when saying no change.
+
+```{r, echo = FALSE}
+# polynomial models for each variable
+bostonZnPn <- lm(crim ~ zn + I(zn^2) + I(zn^3), data = Boston)
+bostonIndusPn <- lm(crim ~ indus + I(indus^2) + I(indus^3), data = Boston)
+bostonChasPn <- lm(crim ~ chas + I(chas^2) + I(chas^3), data = Boston)
+bostonNoxPn <- lm(crim ~ nox + I(nox^2) + I(nox^3), data = Boston)
+bostonRmPn <- lm(crim ~ rm + I(rm^2) + I(rm^3), data = Boston)
+bostonAgePn <- lm(crim ~ age + I(age^2) + I(age^3), data = Boston)
+bostonDisPn <- lm(crim ~ dis + I(dis^2) + I(age^3), data = Boston)
+bostonRadPn <- lm(crim ~ rad + I(rad^2) + I(rad^3), data = Boston)
+bostonTaxPn <- lm(crim ~ tax + I(tax^2) + I(tax^3), data = Boston)
+bostonPtrationPn <- lm(crim ~ ptratio + I(ptratio^2) + I(ptratio^3), data = Boston)
+bostonBlackPn <- lm(crim ~ black + I(black^2) + I(black^3), data = Boston)
+bostonLstatPn <- lm(crim ~ lstat + I(lstat^2) + I(lstat^3), data = Boston)
+bostonMedvPn <- lm(crim ~ medv + I(medv^2) + I(medv^3), data = Boston)
+
+```
+
+```{r, echo = FALSE}
+# pull p-values from each model into dataframe
+nonLinPval <- as.data.frame(c(
+summary(bostonZnPn)$coefficients[2:4,4],
+summary(bostonIndusPn)$coefficients[2:4,4],
+summary(bostonChasPn)$coefficients[,4],
+summary(bostonNoxPn)$coefficients[2:4, 4],
+summary(bostonRmPn)$coefficients[2:4,4],
+summary(bostonAgePn)$coefficients[2:4,4],
+summary(bostonDisPn)$coefficients[2:4,4],
+summary(bostonRadPn)$coefficients[2:4,4],
+summary(bostonTaxPn)$coefficients[2:4,4],
+summary(bostonPtrationPn)$coefficients[2:4,4],
+summary(bostonBlackPn)$coefficients[2:4,4],
+summary(bostonLstatPn)$coefficients[2:4,4],
+summary(bostonMedvPn)$coefficients[2:4,4]))
+
+```
+
+\pagebreak
+
+```{r, echo = FALSE}
+# take out row of intercept value
+nonLinPval <- as.data.frame(nonLinPval[-7,])
+
+# variable names
+nonLinPval$Variables <- c('Zn','Zn^2','Zn^3','Indus','Indus^2','Indus^3','Chas','Nox','Nox^2','Nox^3','Rm','Rm^2','Rm^3','Age','Age^2','Age^3','Dis',
+                          'Dis^2','Dis^3','Rad','Rad^2','Rad^3','Tax','Tax^2','Tax^3','Ptratio','Ptratio^2','Ptratio^3','Black','Black^2','Black^3',
+                          'Lstat','Lstat^2','Lstat^3','Medv','Medv^2','Medv^3')
+
+# column names
+colnames(nonLinPval) <- c('P-Value', 'Variable')
+
+# kable output
+kable(nonLinPval, caption = 'Significance of Quadratic and Cubic Predictors')
+```
+
+
+
+
+
