@@ -1,0 +1,623 @@
+---
+title: "Kinematic Features Classification"
+author: "Andrew Boschee"
+date: "4/26/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F, warning = F, cache = F)
+```
+```{r, echo = FALSE}
+library(MASS)
+library(rpart)
+library(partykit)
+library(mclust)
+library(ggplot2)
+library(class)
+library(knitr)
+library(gridExtra)
+```
+
+## Introduction
+
+Among the three objectives of this project, I believe that the practicality of certain classifications are much more legitimate than others. To begin with, given the type of independent variables in the dataset, I believe that the cursive vs print classification is a reasonable request when it comes to the duration of contact, angles, and other attributes of movement. The other two dependent variables I am not so sure about. While letters are a legitimate object to classify from image recognition, I am not sure about the legitimacy from the data given. Finally, when looking at legitimacy of them as a combined response variable, there will most likely be a struggle.
+
+```{r, echo = FALSE}
+labeledData <- read.csv("labeled.csv", stringsAsFactors=F)[,-1]
+#str(labeledData)
+
+unlabeledExampleTrial <-
+  read.csv("unlab.example.trial.csv", stringsAsFactors=F)[,-1]
+#str(unlabeledExampleTrial)
+
+#xtabs(~Trial+Condition+Group+Subject, labeledData)
+
+```
+
+
+
+```{r, echo = FALSE}
+# load dataset
+trn.dat=read.csv("labeled.csv", stringsAsFactors = F)[, -1]
+#head(trn.dat)[, 1:6]
+
+#dim(trn.dat)
+#Just stupid play to see what we have.
+
+trn.dat.means=NULL
+inde.vars=NULL
+
+# create concatenated dependent variable
+
+
+# index variable for disinct rows
+index.var=apply(trn.dat[, 1:4], 1, paste, collapse = ":")
+#table(index.var)
+uni.vars=unique(index.var)
+
+for (i in uni.vars){
+  trn.dat.i=trn.dat[i==index.var, ]
+  trn.mean.i=colMeans(trn.dat.i[,-(1:5)])
+  inde.vars=rbind(inde.vars, trn.dat.i[1,(1:4)])
+  trn.dat.means=rbind(trn.dat.means, trn.mean.i)
+}
+
+
+#summary(trn.dat.means)
+#cbind(colnames(trn.dat.means))
+
+# drop unneeded variables
+trn.dat.means=trn.dat.means[, -c(13, 14)]
+
+# drop unneeded variables
+trn.dat.means=trn.dat.means[, -c(13, 14)]
+
+# make dataframes for each dependent variable for EDA
+boxplot.dat.group=data.frame(inde.vars[,1],trn.dat.means)
+boxplot.dat.sub=data.frame(inde.vars[,2],trn.dat.means)
+boxplot.dat.con=data.frame(inde.vars[,3],trn.dat.means)
+```
+
+
+
+
+```{r, echo =FALSE, fig.width=10, fig.height=5}
+
+my.cols=c("red", "blue")
+#prin.comp.mod=princomp(trn.dat.means, cor = F)
+#plot(prin.comp.mod)
+#plot(prin.comp.mod$scores[, 1:2], pch=16, cex=.5,
+# col=my.cols[(inde.vars[,1]=="CUR")+1],
+# ylim=c(-1400, 1400), xlim=c(-1400, 1400))
+
+
+# PCA Analysis for each dependent var
+prin.comp.mod=princomp(trn.dat.means, cor = T)
+
+
+
+
+lda.mod.group.prin=lda(x=prin.comp.mod$scores[, 1:10],
+                       grouping = inde.vars[,1], CV=T)
+
+
+lda.mod.sub.prin=lda(x=prin.comp.mod$scores[, 1:10],
+                     grouping = inde.vars[,2], CV=T)
+
+lda.mod.con.prin=lda(x=prin.comp.mod$scores[, 1:10],
+                     grouping = inde.vars[,3], CV=T)
+
+con.confus=data.frame(cbind(paste(lda.mod.group.prin$class),
+                            paste(inde.vars[,1])))
+
+#xtabs(~X1+X2, con.confus)
+
+
+#paste(lda.mod.group.prin$class)[1]
+#paste(lda.mod.sub.prin$class)[1]
+#paste(lda.mod.con.prin$class)[1]
+
+#qda.mod <- qda(x=prin.comp.mod$scores[, 1:10],
+#                       grouping = inde.vars[,1], CV=T)
+
+classes.joint=
+  apply(inde.vars[,1:3], 1, paste, collapse = ":")
+classes.joint.df <- as.data.frame(classes.joint)
+
+lda.mod.joint.prin=lda(x=prin.comp.mod$scores[, 1:10],
+grouping = classes.joint, CV=T)
+
+prin.comp.df <- cbind.data.frame(prin.comp.mod$scores, classes.joint.df)
+```
+
+```{r, echo = FALSE, fig.width=10, fig.height=5}
+#plot(prin.comp.mod)
+
+
+#plot(prin.comp.mod$scores[, 1:2], pch=16, cex=.5,
+#     col=my.cols[(inde.vars[,1]=="CUR")+1])
+
+#plot(prin.comp.mod$scores[, 2:3], pch=16, cex=.5,
+#     col=my.cols[(inde.vars[,1]=="CUR")+1])
+
+```
+
+
+
+## Group Classification - Logistic Regression, Decision Tree, KNN
+
+With a higher level of confidence in classifying the difference between cursive and print, the first thing I would like to find is variable importance. I expect duration and possibly the angle to be important for this dependent variable. We can see from the plot that error rate flattens out aroud the fourth split. I'm a little surprised that we only come away with about 50% accuracy.
+
+### Decision Tree 
+
+```{r, echo = FALSE, fig.width=10, fig.height=5}
+# build decision tree for group variable
+trn.dat.i.mod <- trn.dat.i[,-c(2,3,18,19)]
+groupRF <- rpart(Group ~ ., method = 'class', data = trn.dat[,-c(2,3,18,19)])
+#printcp(groupRF)
+plotcp(groupRF)
+#summary(groupRF)
+
+prunedgroupRF <- prune(groupRF, cp=groupRF$cptable[which.min(groupRF$cptable[,'xerror']),'CP'])
+```
+
+Regarding group as a response variable, we can see the most important variables in the tree diagram below as well as the table containing all predictor variables. While the predictions were not impressive, it is understandable why these variables such as duration and jerk are seen as important when comparing cursive writing to print.
+
+```{r, echo = FALSE, fig.width=10, fig.height=5}
+# plot decision tree and top variables
+plot(as.party(prunedgroupRF), tp_args = list(id=FALSE))
+
+groupVariableImportance <- groupRF$variable.importance
+
+kable(groupVariableImportance, caption = 'Variable Importance with Group as Response', col.names = NULL)
+```
+
+```{r, echo = FALSE,  fig.width=10, fig.height=5}
+#plot top features for group variable
+par(mfrow = c(2,2))
+boxplot(AverageNormalizedyJerkPerTrial ~ inde.vars...1., boxplot.dat.group, main = 'Average Normalized Jerk Y Per Trial', xlab = 'Group')
+boxplot(AverageNormalizedJerkPerTrial ~ inde.vars...1., boxplot.dat.group, main = 'Average Normalized Jerk Per Trial', xlab = 'Group')
+boxplot(RelativePenDownDuration ~ inde.vars...1., boxplot.dat.group, main = 'Relative Pen Down Duration', xlab = 'Group')
+boxplot(log(Duration)~ inde.vars...1., boxplot.dat.group, main = 'Duration', xlab = 'Group')
+
+```
+
+
+### Logistic Regression - All Features Against Only Top Three From Variable Importance
+
+To see how well a common logistic regression model performs with all features in comparison to the top variables from the variable importance the prior step, there are two confusion matrices and table comparing the accuracy.
+
+```{r, echo = FALSE}
+# training set for group variable
+trn.dat.grp <- trn.dat[,-c(2,3,18,19)]
+
+# create binary dependent variable
+trn.dat.grp$Result <- ifelse(trn.dat.grp$Group == 'CUR', 1,0 )
+
+# construct model
+groupLR <- glm(formula = Result ~ . , family = binomial, data = trn.dat.grp[,-c(1,2,3,18,19)])
+groupLRSelectVars <- glm(formula = Result ~ AbsoluteJerk + Duration + AverageNormalizedyJerkPerTrial , family = binomial, data = trn.dat.grp[,-c(1,2,3,18,19)])
+# make predictions
+groupPred <- predict(groupLR, type = 'response')
+groupPred2 <- predict(groupLRSelectVars, type = 'response')
+
+# classify predictions
+trn.dat.grp$prob <- as.factor(ifelse(groupPred < 0.5, 0, 1))
+trn.dat.grp$Pred <- as.factor(ifelse(groupPred < 0.5, 'PRI', 'CUR'))
+
+trn.dat.grp$prob2 <- as.factor(ifelse(groupPred2 < 0.5, 0, 1))
+trn.dat.grp$Pred2 <- as.factor(ifelse(groupPred2 < 0.5, 'PRI', 'CUR'))
+#head(trn.dat.grp)
+
+# mark as correct if prediction matches
+
+groupConfMatr <- table(trn.dat.grp$Group, trn.dat.grp$Pred)
+groupConfMatr2 <- table(trn.dat.grp$Group, trn.dat.grp$Pred2)
+
+groupConfMatr
+groupConfMatr2
+#summary(groupLR)
+#summary(groupLRSelectVars)
+
+groupAccur <- groupConfMatr[1,1] + groupConfMatr[2,2]
+groupAccur <- groupAccur / sum(nrow(trn.dat.grp))
+groupAccur2 <- groupConfMatr2[1,1] + groupConfMatr2[2,2]
+groupAccur2 <- groupAccur2 / sum(nrow(trn.dat.grp))
+
+
+kable(cbind(groupAccur,groupAccur2), col.names = c('All Features','Top 3 Features'), caption = 'Accuracy of Predictions')
+```
+
+
+
+## Subject Classification - Decision Tree
+
+Moving on to the subject variable, it is interesting to compare the similarities and differences of variable importance against the group variable. Both models look at Duration and AverageNormalizedJerkPerTrial. However, the top predictor for subject is AveragePenPressure which makes sense since it's easy to see that pen pressure can easily vary between people.
+
+```{r, echo = FALSE, fig.width=10, fig.height=5}
+# repeat model and plots with subject variable
+trn.dat.sub <- trn.dat[,-c(1,3,18,19)]
+
+subjClas <- rpart(Subject ~ ., method = 'class', data = trn.dat.sub)
+
+prunedSubjClas <- prune(subjClas, cp=subjClas$cptable[which.min(subjClas$cptable[,'xerror']),'CP'])
+#plot(prunedFit, uniform = TRUE)
+
+plot(as.party(prunedSubjClas), tp_args = list(id=FALSE))
+
+
+subjectVarImportance <- prunedSubjClas$variable.importance
+kable(subjectVarImportance, caption = 'Variable Importance Subject as Response', col.names = NULL)
+```
+
+```{r, echo = FALSE, fig.width = 10, fig.height = 5}
+# plot top feature boxplots for subj variable
+par(mfrow = c(1,2))
+boxplot(AverageNormalizedJerkPerTrial ~ inde.vars...2., boxplot.dat.sub, main = 'Average Normalized Jerk Per Trial', xlab = 'Subject')
+boxplot(AveragePenPressure ~ inde.vars...2., boxplot.dat.sub, main = 'Average Pen Pressure', xlab = 'Subject')
+
+```
+
+## Condition Classification - Decision Tree
+
+Lastly regarding feature importance, we will look at the Condition response variable. With the given data and models being used at the moment this isn't ideal. An easy thing to notice hear is how all three nodes are regarding some sense of the average normalized jerk per trial. This is concerning and again makes me want to look more towards princial components. 
+
+```{r, echo = FALSE, fig.width=10, fig.height=5}
+# repeat prior steps for condition variable
+trn.dat.con <- trn.dat[,-c(1,2,18,19)]
+
+condClas <- rpart(Condition ~ ., method = 'class', data = trn.dat.con)
+
+prunedcondClas <- prune(condClas, cp=condClas$cptable[which.min(condClas$cptable[,'xerror']),'CP'])
+#plot(prunedFit, uniform = TRUE)
+plot(as.party(prunedcondClas), tp_args = list(id=FALSE))
+
+
+condVarImportance <- prunedcondClas$variable.importance
+kable(condVarImportance, caption = 'Variable Importance Condition as Response', col.names = NULL)
+```
+
+
+
+```{r, echo = FALSE, fig.height= 5, fig.width= 10}
+
+# box plots for condition factors
+par(mfrow = c(2,2))
+boxplot(log(Duration)~ inde.vars...3., boxplot.dat.con, main = 'Duration', xlab = 'Condition')
+boxplot(AverageNormalizedyJerkPerTrial ~ inde.vars...3., boxplot.dat.con, main = 'Average Normalized Y Jerk Per Trial', xlab = 'Condition')
+boxplot(AverageNormalizedJerkPerTrial ~ inde.vars...3., boxplot.dat.con, main = 'Average Normalized Jerk Per Trial', xlab = 'Condition')
+```
+
+## Methods Using PCA
+
+Moving on to principal comonents, I kept the use down to 10 or less components and examined the accuracy using various numbers of principal components. My first instinct was to keep at down around three variables, but results coming up shortly changed my opinion and went up to using ten in most cases.
+
+```{r, echo = FALSE,fig.width=10, fig.height=5}
+
+#pairs(prin.comp.mod$scores[, 1:10], pch=16, cex=.5,
+#      col=my.cols[(inde.vars[,1]=="CUR")+1])
+
+plot(prin.comp.mod)
+
+```
+
+### Linear Discriminant Analysis 
+
+The starting point of making predictions with the principal components began with linear discriminant analysis. The table below shows the accuracy rate for each dependent variable individually and the 'Joint' variable which is having every unique combination of those three variable as the reponse.
+
+```{r, echo = FALSE}
+# stor eaccruacy in variables for kable
+ldaGroup <- mean(lda.mod.group.prin$class==inde.vars[,1])
+ldaSub <- mean(lda.mod.sub.prin$class==inde.vars[,2])
+ldaCond <- mean(lda.mod.con.prin$class==inde.vars[,3])
+ldaJoint <- mean(paste(lda.mod.joint.prin$class)==classes.joint)
+
+kable(cbind(ldaGroup, ldaSub, ldaCond, ldaJoint), caption = 'LDA with PCA Classification Summary', col.names = c('Group','Subject','Condition','Joint'))
+
+```
+
+### KNN 
+
+With poor performance so far with previous modeling methods, I am trying a very simple method using K-Nearest Neighbors with various arguments for K and the number of Principal Components used. With a 75/25 train/test split, there are some surprising and concerning results from these models.
+
+We begin with the Group variable that I feel most confident in and get decent accuracy in the 80-90 percent range with just the first three principal components. 
+
+
+
+```{r, echo = FALSE}
+# create a sample size of 75% of the sample
+sampleRows <- (0.75 * nrow(prin.comp.mod$scores))
+
+# set seed for reproducibility
+set.seed(123)
+trainIndex <- sample(seq_len(nrow(prin.comp.mod$scores)), size = sampleRows)
+trainIndex2 <- as.vector(trainIndex)
+# split into train and test
+trainSet <- trn.dat.grp[trainIndex,]
+
+testSet <- trn.dat.grp[-trainIndex,]
+
+classes.joint=
+  apply(inde.vars[,1:3], 1, paste, collapse = ":")
+
+classes.joint <- as.vector(classes.joint)
+```
+
+```{r, echo = FALSE}
+#knn k = 1
+knn1 <- knn(train = as.matrix(prin.comp.mod$scores[trainIndex,1:3]),test= as.matrix(prin.comp.mod$scores[-trainIndex,1:3]), inde.vars[trainIndex,1], k=1)
+#summary(knn1)
+knn2 <- knn(train = as.matrix(prin.comp.mod$scores[trainIndex,1:3]), test = as.matrix(prin.comp.mod$scores[-trainIndex,1:3]), inde.vars[trainIndex,1], k=3)
+#summary(knn2)
+knn3 <- knn(train = as.matrix(prin.comp.mod$scores[trainIndex,1:3]), test = as.matrix(prin.comp.mod$scores[-trainIndex,1:3]), inde.vars[trainIndex,1], k=5)
+knn4 <- knn(train = as.matrix(prin.comp.mod$scores[trainIndex,1:3]), test = as.matrix(prin.comp.mod$scores[-trainIndex,1:3]), inde.vars[trainIndex,1], k=10)
+```
+
+
+```{r, echo = FALSE}
+# confusion matrix for knn
+confMatrKNN1 <- table(knn1, inde.vars[-trainIndex,1])
+confMatrKNN2 <- table(knn2, inde.vars[-trainIndex,1])
+confMatrKNN3 <- table(knn3, inde.vars[-trainIndex,1])
+confMatrKNN4 <- table(knn4, inde.vars[-trainIndex,1])
+
+# calc accuracy for knn
+KNNAccuracy1 <- (confMatrKNN1[1,1] + confMatrKNN1[2,2])/(sum(nrow((prin.comp.mod$scores[-trainIndex,1:3]))))
+KNNAccuracy2 <- (confMatrKNN2[1,1] + confMatrKNN2[2,2])/(sum(nrow((prin.comp.mod$scores[-trainIndex,1:3]))))
+KNNAccuracy3 <- (confMatrKNN3[1,1] + confMatrKNN3[2,2])/(sum(nrow((prin.comp.mod$scores[-trainIndex,1:3]))))
+KNNAccuracy4 <- (confMatrKNN4[1,1] + confMatrKNN4[2,2])/(sum(nrow((prin.comp.mod$scores[-trainIndex,1:3]))))
+#KNNAccuracy5 <- (confMatrKNN5[1,1] + confMatrKNN5[2,2])/(sum(nrow((prin.comp.mod$scores[-trainIndex,1:3]))))
+#KNNAccuracy6 <- (confMatrKNN6[1,1] + confMatrKNN6[2,2])/(sum(nrow((prin.comp.mod$scores[-trainIndex,1:3]))))
+
+# construct dataframe for output
+knnComp <- cbind.data.frame(KNNAccuracy1, KNNAccuracy2, KNNAccuracy3, KNNAccuracy4)
+kable(knnComp, caption = 'KNN Accuracy Comparison - Group Variable', col.names = c('k=3','k=5','k=5','k=10'))
+```
+
+```{r, echo = FALSE}
+knn6 <- knn(train = as.matrix(prin.comp.mod$scores[trainIndex,1:3]), test = as.matrix(prin.comp.mod$scores[-trainIndex,1:3]), classes.joint[trainIndex], k=6)
+
+
+#summary(knn4)
+
+#summary(knn6)
+#str(knn6)
+#str(as.factor(classes.joint))
+#mean(paste(as.vector(as.factor(knn6)))==as.vector(as.factor(classes.joint)))
+
+#knnDF <- cbind.data.frame(knn6, classes.joint)
+
+#numMisClass <- length(which(knn6 != classes.joint[-trainIndex]))
+#knnDfError <- numMisClass/length(classes.joint[-trainIndex])
+#kable(knnDfError, caption = 'KNN Error Rate - Combined Dependent Variable - k = 6', col.names = NULL)
+```
+Next, for quicker analysis, I created a function to iterate through the model 30 times using varying numbers of principal components. The argument given determined the range of principal components with the plots below showing the drastic variance of accuracy when changing the value of K and number of principal components.
+
+```{r, echo = FALSE,fig.width=10, fig.height=5}
+# reconstruct prior code to ease testing of models
+# function to loop through various values of x with given number of principal componenets
+set.seed(123)
+kTest <- function(numPrinComp){
+i=1
+OptimumK=1
+for (i in 1:30){
+ knnMod <- knn(train=as.matrix(prin.comp.mod$scores[trainIndex,1:numPrinComp]), test=as.matrix(prin.comp.mod$scores[-trainIndex,1:numPrinComp]), cl=classes.joint[trainIndex], k=i)
+ OptimumK[i] <- 100 * sum(classes.joint[trainIndex] == knnMod)/length(classes.joint[trainIndex])
+ k=i
+ #cat(k,'=',OptimumK[i],'')
+}
+plot(OptimumK,type='b', xlab='K',ylab='Accuracy')
+}
+
+# repeat prior loop with a list output
+set.seed(123)
+kTest2 <- function(numPrinComp){
+i=1
+OptimumK=1
+for (i in 1:30){
+ knnMod <- knn(train=as.matrix(prin.comp.mod$scores[trainIndex,1:numPrinComp]), test=as.matrix(prin.comp.mod$scores[-trainIndex,1:numPrinComp]), cl=classes.joint[trainIndex], k=i)
+ OptimumK[i] <- 100 * sum(classes.joint[trainIndex] == knnMod)/length(classes.joint[trainIndex])
+ k=i
+ cat(k,'=',OptimumK[i],'')
+}
+#plot(OptimumK,type='b', xlab='K',ylab='Accuracy')
+}
+
+
+```
+
+#### Three Principal Components Used
+```{r, echo = FALSE,fig.width=10, fig.height=5}
+set.seed(123)
+kTest(3)
+```
+
+\pagebreak
+
+#### Eight Principal Components Used
+```{r, echo = FALSE,fig.width=10, fig.height=5}
+set.seed(123)
+kTest(8)
+```
+
+#### Ten Principal Components Used
+
+This is where we actually get an accuracy above 40% when K is between 15 and 20 using the first ten principal components. 
+
+```{r, echo = FALSE,fig.width=10, fig.height=5}
+set.seed(123)
+kTest(10)
+```
+
+
+
+### Mclust and PCA
+
+The final approach is using ten principal components with Mclustcv() function. This method gives similar output to LDA from earlier ending up with accuracy between 25-30%. 
+
+#### Using Ten Principal Components
+
+```{r, echo = FALSE}
+# create a sample size of 75% of the sample
+sampleRows <- (0.75 * nrow(prin.comp.df))
+
+# set seed for reproducibility
+set.seed(123)
+trainIndex <- sample(seq_len(nrow(prin.comp.df)), size = sampleRows)
+#trainIndex2 <- as.vector(trainIndex)
+# split into train and test
+#trainSet <- prin.comp.df[trainIndex,1:3]
+
+#testSet <- prin.comp.df[-trainIndex,]
+```
+
+```{r, echo = FALSE}
+prin.comp.mod=princomp(trn.dat.means, cor = T)
+#PCA from original Train means
+
+unlabeled.examp=read.csv("unlab.example.trial.csv",
+stringsAsFactors = F)[, -1]
+
+#unlabeled.examp[, 1:7]
+
+#Making the Means vectors for each Trial
+unlab.dat.means=NULL
+
+#(table(index.var))
+uni.vars=unique(unlabeled.examp$Trial)
+# create dataframes of training data means
+for (i in uni.vars){
+unlab.dat.i=unlabeled.examp[i==unlabeled.examp$Trial, ]
+unlab.mean.i=colMeans(unlab.dat.i[,-(1:2)])
+unlab.dat.means=rbind(unlab.dat.means, unlab.mean.i)
+}
+
+formated.unlab=unlab.dat.means[, -(13:14)]
+# build lda model with joing response variable
+lda.mod.joint.prin=lda(x=prin.comp.mod$scores[, 1:10],
+grouping = classes.joint)
+
+unlabPrinComp <- prin.comp.mod$scores[,1:10]
+
+#predict(lda.mod.joint.prin, newdata = predict(prin.comp.mod, newdata=formated.unlab)[, 1:10])$class
+
+#Double check for cor=f
+
+#dim(formated.unlab)
+#matrix(prin.comp.mod$center, nrow = 2, ncol=23, byrow = T)
+
+#centered.unlab=formated.unlab-
+#matrix(prin.comp.mod$center, nrow = 2, ncol=23, byrow = T)
+
+#dim(centered.unlab)
+#dim(prin.comp.mod$loadings)
+
+#scores.unlab=t(t(prin.comp.mod$loadings)%*%t(centered.unlab))
+
+#cbind(t(predict(prin.comp.mod, newdata=formated.unlab)), t(scores.unlab))
+
+```
+
+```{r, echo = FALSE}
+sampleRows <- (0.75 * nrow(prin.comp.df))
+
+# set seed for reproducibility
+set.seed(123)
+trainIndex <- sample(seq_len(nrow(prin.comp.df)), size = sampleRows)
+
+# build mclusd model with principal components
+prinCompMclust <- MclustDA(prin.comp.df[,1:10], class = as.factor(prin.comp.df[,22]), modelType = 'EDDA', G = 1)
+
+# store summary and prediction in variable
+mclustSumm <- summary(prinCompMclust, parameters =TRUE, what = 'classification', newdata = unlabPrinComp)
+mclustPred <- predict(prinCompMclust, parameters =TRUE, what = 'classification', newdata = unlabPrinComp)
+
+#summary(mclustPred$classification)
+
+
+cv2 <- cvMclustDA(prinCompMclust, nfold = 10)
+#cv2$classification
+#nonCVMclustAcc <- summary(mclustPred)$err
+#nonCVMclustAcc
+cvMclustAcc <- 1 - cv2$error
+
+kable(cvMclustAcc, caption = 'Mclust Using Principal Components - 10 Fold CV')
+
+```
+
+
+
+
+## Hierarchical Clustering (Complete Method) Vs Kmeans Clustering
+
+The last phase of comparing reasonability of being able to predict each dependent variable, I used hclust() and kmeans() on each variable and compared them in tables. hclust() was not very impressive at all when looking at any variables. While Kmeans was nothing special, it did significantally better when it came to identifying cursive vs print. Surprisingly, hclust only had 3 samples in the second cluster with the remaining 1397 in the first cluster. This seems like one of the better ways to look at separating condition variable with given data.
+
+
+```{r, echo = FALSE}
+# scale features
+sd.sub <- scale(trn.dat.means)
+
+# store distance for clustering
+subDist <- dist(trn.dat.means)
+
+# cluster with complete method
+hclustOut <- hclust(subDist, method = 'complete')
+
+# trim trees to number of records
+hclustClustersSubject <- cutree(hclustOut, 40)
+hclustClustersGroup <- cutree(hclustOut, 2)
+hclustClustersCondition <- cutree(hclustOut, 6)
+```
+
+### Hierarchical Clustering
+
+```{r, echo = FALSE}
+# hierarchical clustering matrices
+#table(hclustClustersSubject, inde.vars[,2])
+table(hclustClustersGroup, inde.vars[,1])
+table(hclustClustersCondition, inde.vars[,3])
+```
+
+```{r, echo = FALSE}
+# store kmeans values
+kMeansSubject <- kmeans(sd.sub, 40)
+KMeansGroup <- kmeans(sd.sub, 2)
+KMeansCondition <- kmeans(sd.sub, 6)
+
+# store cluster values in variable
+kmClustersSubject <- kMeansSubject$cluster
+kmClustersGroup <- KMeansGroup$cluster
+kmClustersCondition <- KMeansCondition$cluster
+```
+
+### KMeans Clustering
+
+```{r, echo = FALSE}
+# kmeans for each dependent variable
+#table(kmClustersSubject,inde.vars[,2])
+table(kmClustersGroup,inde.vars[,1])
+table(kmClustersCondition, inde.vars[,3])
+
+```
+
+### Kmeans vs Hclust Comparison
+
+```{r, echo = FALSE}
+# compare kmeans with hclust
+#table(kmClustersSubject, hclustClustersSubject)
+table(kmClustersGroup, hclustClustersGroup)
+table(kmClustersCondition, hclustClustersCondition)
+```
+
+## Conclusion
+
+The main goal here was to find whether it is practical or not to classify a joint dependent variable composed of the variables Group, Subject, and Condition. After observing outcomes from models given above, while the accuracy is greater than a random gues of the 480 possible objects, it doesn't seem like a task that can be completed with a high level of confidence. My main concern after all is said and done remains with the condition variable. I would further investigate the clustering of the phrases to see more in depth on consistency across subjects making it more feasible to classify those phrases.
+
+The similarity of variable importance across the response variables gives a slight glimmer of hope that there may be potential to increase the accuracy. Further investigation with the use of Support Vector methods and Random Forest modeling as well as continued modification of principal components, I could see potential improvement.
+
+
+*Outside Resources - cran.r-project.org, edureka.co, statmethods.net, A Handbook of Statistical Analysis Using R, Introduction to Statistical Learning*
